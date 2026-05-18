@@ -1,0 +1,32 @@
+@theme animatons {
+    --animate-collapsible-down: slideDownCollapsible 250ms cubic-bezier(0.645, 0.045, 0.355, 1);
+    --animate-collapsible-up: slideUpCollapsible 200ms cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+  @layer components {
+    @keyframes slideDownCollapsible {
+      from {
+        height: 0;
+      }
+      to {
+        height: var(--radix-collapsible-content-height);
+      }
+    }
+  
+    @keyframes slideUpCollapsible {
+      from {
+        height: var(--radix-collapsible-content-height);
+      }
+      to {
+        height: 0;
+      }
+    }
+  }
+
+@media (prefers-reduced-motion: reduce) {
+  @layer components {
+    [data-slot="collapsible-content"] {
+      animation: none;
+    }
+  }
+}
+  

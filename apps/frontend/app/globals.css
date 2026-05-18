@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+@theme inline {
+  --spacing: 4px;
+  --font-sans: Inter, sans-serif;
+  --info: #d9e2ff;
+  --info-contrast: #0045a3;
+  --success: #e8fef7;
+  --success-contrast: #045d3c;
+  --danger: #ffdad6;
+  --danger-contrast: #ba1a1a;
+  --warning: #ffdbce;
+  --warning-contrast: #7f2b00;
+  --radius-sm: calc(var(--spacing) * 0.5);
+  --radius-md: calc(var(--spacing) * 1);
+  --radius-lg: calc(var(--spacing) * 1.5);
+  --radius-xl: calc(var(--spacing) * 2);
+  --aura-loader: var(--aura-loader);
+  --color-warning-contrast: var(--warning-contrast);
+  --color-warning: var(--warning);
+  --color-danger-contrast: var(--danger-contrast);
+  --color-danger: var(--danger);
+  --color-success-contrast: var(--success-contrast);
+  --color-success: var(--success);
+  --color-info-contrast: var(--info-contrast);
+  --color-info: var(--info);
+  --secundary-foreground: var(--secundary-foreground);
+  --secundary: var(--secundary);
+  --primary-foreground: var(--primary-foreground);
+  --primary: var(--primary);
+  --color-gray-track: var(--gray-track);
+  --color-gray-indicator: var(--gray-indicator);
+  --color-gray-surface: var(--gray-surface);
+  --color-gray-contrast: var(--gray-contrast);
+  --color-gray-a12: var(--gray-a12);
+  --color-gray-a11: var(--gray-a11);
+  --color-gray-a10: var(--gray-a10);
+  --color-gray-a9: var(--gray-a9);
+  --color-gray-a8: var(--gray-a8);
+  --color-gray-a7: var(--gray-a7);
+  --color-gray-a6: var(--gray-a6);
+  --color-gray-a5: var(--gray-a5);
+  --color-gray-a4: var(--gray-a4);
+  --color-gray-a3: var(--gray-a3);
+  --color-gray-a2: var(--gray-a2);
+  --color-gray-a1: var(--gray-a1);
+  --color-gray-12: var(--gray-12);
+  --color-gray-11: var(--gray-11);
+  --color-gray-10: var(--gray-10);
+  --color-gray-9: var(--gray-9);
+  --color-gray-8: var(--gray-8);
+  --color-gray-7: var(--gray-7);
+  --color-gray-6: var(--gray-6);
+  --color-gray-5: var(--gray-5);
+  --color-gray-4: var(--gray-4);
+  --color-gray-3: var(--gray-3);
+  --color-gray-2: var(--gray-2);
+  --color-gray-1: var(--gray-1);
+  --color-accent-track: var(--accent-track);
+  --color-accent-indicator: var(--accent-indicator);
+  --color-accent-surface: var(--accent-surface);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-a12: var(--accent-a12);
+  --color-accent-a11: var(--accent-a11);
+  --color-accent-a10: var(--accent-a10);
+  --color-accent-a9: var(--accent-a9);
+  --color-accent-a8: var(--accent-a8);
+  --color-accent-a7: var(--accent-a7);
+  --color-accent-a6: var(--accent-a6);
+  --color-accent-a5: var(--accent-a5);
+  --color-accent-a4: var(--accent-a4);
+  --color-accent-a3: var(--accent-a3);
+  --color-accent-a2: var(--accent-a2);
+  --color-accent-a1: var(--accent-a1);
+  --color-accent-12: var(--accent-12);
+  --color-accent-11: var(--accent-11);
+  --color-accent-10: var(--accent-10);
+  --color-accent-9: var(--accent-9);
+  --color-accent-8: var(--accent-8);
+  --color-accent-7: var(--accent-7);
+  --color-accent-6: var(--accent-6);
+  --color-accent-5: var(--accent-5);
+  --color-accent-4: var(--accent-4);
+  --color-accent-3: var(--accent-3);
+  --color-accent-2: var(--accent-2);
+  --color-accent-1: var(--accent-1);
+}
+
+:root {
+  /* Accent color scale - Primary Blue from Design System */
+  --accent-1: #fdfcff;
+  --accent-2: #f2f3fd;
+  --accent-3: #e7e7f2;
+  --accent-4: #d3deff;
+  --accent-5: #c2c6d6;
+  --accent-6: #b0c6ff;
+  --accent-7: #7396ff;
+  --accent-8: #4d7fff;
+  --accent-9: #005bd3;
+  --accent-10: #0052c1;
+  --accent-11: #003fa0;
+  --accent-12: #0045a3;
+
+  --accent-a1: #005bd303;
+  --accent-a2: #005bd307;
+  --accent-a3: #005bd312;
+  --accent-a4: #005bd31d;
+  --accent-a5: #005bd32a;
+  --accent-a6: #005bd33b;
+  --accent-a7: #005bd351;
+  --accent-a8: #005bd36f;
+  --accent-a9: #005bd3b3;
+  --accent-a10: #005bd3be;
+  --accent-a11: #005bd3c5;
+  --accent-a12: #005bd3e5;
+
+  --accent-contrast: #ffffff;
+  --accent-surface: #d3deffcc;
+  --accent-indicator: #005bd3;
+  --accent-track: #005bd3;
+
+  /* Gray color scale - Neutral grays from Design System */
+  --gray-1: #ffffff;
+  --gray-2: #faf8ff;
+  --gray-3: #f2f3fd;
+  --gray-4: #ededf8;
+  --gray-5: #e7e7f2;
+  --gray-6: #e1e2ec;
+  --gray-7: #d8d9e4;
+  --gray-8: #c2c6d6;
+  --gray-9: #737785;
+  --gray-10: #616268;
+  --gray-11: #424654;
+  --gray-12: #191b23;
+
+  --gray-a1: #191b2304;
+  --gray-a2: #191b2308;
+  --gray-a3: #191b2312;
+  --gray-a4: #191b231b;
+  --gray-a5: #191b2324;
+  --gray-a6: #191b232c;
+  --gray-a7: #191b2339;
+  --gray-a8: #191b234e;
+  --gray-a9: #191b237c;
+  --gray-a10: #191b2386;
+  --gray-a11: #191b23a3;
+  --gray-a12: #191b23e4;
+
+  --gray-contrast: #ffffff;
+  --gray-surface: #f2f3fdcc;
+  --gray-indicator: #737785;
+  --gray-track: #737785;
+
+  --primary: #0045a3;
+  --primary-foreground: #ffffff;
+  --secundary: #5d5e64;
+  --secundary-foreground: #ffffff;
+
+  /* Aura Design System - Root Tokens */
+  --aura: 13px;
+  --aura-font-stack: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  --aura-font-quotes: serif;
+
+  /* Aura Background & Text - Mapped to gray scale */
+  --aura-bg: var(--gray-1);
+  --aura-text-primary: var(--accent-12);
+  --aura-text-primary-inverse: var(--gray-contrast);
+
+  --aura-accents-primary: var(--accent-9);
+  --aura-accents-secondary: var(--accent-9);
+
+  /* Aura Component Tokens - Mapped to 12-step system */
+  --aura-input-radius: 6.5px;
+  --aura-button-radius: 6.5px;
+  --aura-input-bg: var(--accent-2);
+  --aura-input-placeholder-color: var(--gray-11);
+  --aura-radius: 0.5rem;
+  --aura-opacity: 0.5;
+  --aura-outline: var(--accent-9) solid 2px;
+  --aura-button-hover: var(--accent-11);
+  --aura-link: var(--gray-12);
+  --aura-link-hover: var(--accent-2);
+  --aura-selector: var(--accent-surface);
+  --aura-loader: var(--primary);
+  --aura-skeleton-start: var(--gray-8);
+  --aura-skeleton-end: var(--gray-5);
+  --radius: 0.5rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Accent color scale - Primary Blue from Design System */
+    --accent-1: #001945;
+    --accent-2: #00419c;
+    --accent-3: #003fa0;
+    --accent-4: #0045a3;
+    --accent-5: #004daa;
+    --accent-6: #005bd3;
+    --accent-7: #4d7fff;
+    --accent-8: #7396ff;
+    --accent-9: #b0c6ff;
+    --accent-10: #d3deff;
+    --accent-11: #e7e7f2;
+    --accent-12: #f2f3fd;
+
+    --accent-a1: #005bd30c;
+    --accent-a2: #005bd311;
+    --accent-a3: #005bd323;
+    --accent-a4: #005bd338;
+    --accent-a5: #005bd34a;
+    --accent-a6: #005bd35b;
+    --accent-a7: #005bd379;
+    --accent-a8: #005bd3aa;
+    --accent-a9: #005bd3dc;
+    --accent-a10: #005bd3a9;
+    --accent-a11: #005bd3;
+    --accent-a12: #005bd3;
+
+    --accent-contrast: #ffffff;
+    --accent-surface: #00419c80;
+    --accent-indicator: #005bd3;
+    --accent-track: #005bd3;
+
+    /* Gray color scale - Neutral grays from Design System (light mode reversed) */
+    --gray-1: #191b23;
+    --gray-2: #424654;
+    --gray-3: #616268;
+    --gray-4: #737785;
+    --gray-5: #c2c6d6;
+    --gray-6: #d8d9e4;
+    --gray-7: #e1e2ec;
+    --gray-8: #e7e7f2;
+    --gray-9: #ededf8;
+    --gray-10: #f2f3fd;
+    --gray-11: #faf8ff;
+    --gray-12: #ffffff;
+
+    --gray-a1: #f2f3fd0c;
+    --gray-a2: #f2f3fd0e;
+    --gray-a3: #f2f3fd17;
+    --gray-a4: #f2f3fd1c;
+    --gray-a5: #f2f3fd23;
+    --gray-a6: #f2f3fd2c;
+    --gray-a7: #f2f3fd3c;
+    --gray-a8: #f2f3fd63;
+    --gray-a9: #f2f3fd77;
+    --gray-a10: #f2f3fd87;
+    --gray-a11: #f2f3fdc5;
+    --gray-a12: #f2f3fdf2;
+
+    --gray-contrast: #ffffff;
+    --gray-surface: rgba(0, 0, 0, 0.05);
+    --gray-indicator: #737785;
+    --gray-track: #737785;
+  }
+}
+
+@layer base {
+  html {
+    font-size: 17px;
+  }
+  main {
+    background-color: var(--gray-1);
+  }
+}
+
+@layer components {
+
+@import "../styles/main.css" ;
+
+@import "../styles/accordion.css" ;
+
+@import "../styles/alert-dialog.css" ;
+
+@import "../styles/collapsible.css" ;
+
+@import "../styles/context-menu.css" ;
+
+@import "../styles/dropdown-menu.css" ;
+
+@import "../styles/hover-card.css" ;
+
+@import "../styles/menubar.css" ;
+
+@import "../styles/navigation-menu.css" ;
+
+@import "../styles/popover.css" ;
+
+@import "../styles/select.css" ;
+
+@import "../styles/tooltip.css" ;
+
+@import "../styles/dialog.css" ;
+
+@import "../styles/sheet.css" ;
+
+@import "../styles/sidebar.css" ;
+
+@import "../styles/command.css" ;
+}

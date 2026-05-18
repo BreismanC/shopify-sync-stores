@@ -1,0 +1,14 @@
+meta {
+  name: "Register"
+}
+
+post {
+  url: "{{base_url}}/auth/register"
+  body: json
+  body: {
+    "name": "Breisman Test",
+    "email": "test@example.com",
+    "password": "securepassword123",
+    "companyName": "Mi Empresa Hippie"
+  }
+}

@@ -1,0 +1,12 @@
+meta {
+  name: "Login"
+}
+
+post {
+  url: "{{base_url}}/auth/login"
+  body: json
+  body: {
+    "email": "test@example.com",
+    "password": "securepassword123"
+  }
+}

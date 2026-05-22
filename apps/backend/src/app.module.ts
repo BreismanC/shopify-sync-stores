@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './infrastructure/database/database.module';
@@ -14,6 +15,11 @@ import { TeamMemberModule } from './application/team-member/team.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ThrottlerModule.forRoot([{
+      name: 'short',
+      ttl: 300000, // 5 min
+      limit: 3,
+    }]),
     DatabaseModule,
     AuthModule,
     TenantModule,
@@ -22,6 +28,8 @@ import { TeamMemberModule } from './application/team-member/team.module';
     TeamMemberModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+  ],
 })
 export class AppModule {}

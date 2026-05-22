@@ -31,13 +31,14 @@ export const Form = React.forwardRef<HTMLFormElement, FormProps>(
           return child;
         }
 
-        if (child.props?.field) {
+        if ((child.props as any)?.field) {
           const fieldErrors = errors?.filter(
-            (error) => error.instancePath.slice(1) === child.props?.field?.name
+            (error) => error.instancePath.slice(1) === (child.props as any)?.field?.name
           );
 
+          const childProps = child.props as any;
           return React.cloneElement(child as React.ReactElement, {
-            ...child.props,
+            ...childProps,
             errors: fieldErrors,
           });
         }

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { IUserRepository } from './repositories/IUserRepository';
+import type { IUserRepository } from './repositories/IUserRepository';
 import { TenantService } from '../../tenant/tenant.service';
 import { SubscriptionService } from '../../subscription/subscription.service';
 import { JwtService } from '@nestjs/jwt';

@@ -98,13 +98,10 @@ export class AuthService {
       return existingUser;
     }
 
-    // Si no existe, crear un nuevo Tenant
-    const tenant = await this.tenantService.create(data.name);
-
     const user = this.userRepository.create({
       email: data.email,
       name: data.name,
-      tenantId: tenant.id,
+      tenantId: undefined,
       role: UserRole.MEMBER,
     });
 

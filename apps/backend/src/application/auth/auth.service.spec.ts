@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import type { IUserRepository } from './repositories/IUserRepository';
-import { TenantService } from '../../tenant/tenant.service';
-import { SubscriptionService } from '../../subscription/subscription.service';
+import { IUSER_REPOSITORY, IUserRepository } from './repositories/IUserRepository';
+import { TenantService } from '../tenant/tenant.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 import { JwtService } from '@nestjs/jwt';
 import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
 import { UserRole } from '../../domain/enums/user-role.enum';
@@ -15,43 +15,44 @@ describe('AuthService', () => {
   let jwtService: jest.Mocked<JwtService>;
 
   beforeEach(async () => {
+    userRepository = {
+      findByEmail: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    } as any;
+    tenantService = {
+      create: jest.fn(),
+    } as any;
+    subscriptionService = {
+      createTrial: jest.fn(),
+    } as any;
+    jwtService = {
+      sign: jest.fn(),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
-          provide: IUserRepository,
-          useValue: {
-            findByEmail: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-          },
+          provide: IUSER_REPOSITORY,
+          useValue: userRepository,
         },
         {
           provide: TenantService,
-          useValue: {
-            create: jest.fn(),
-          },
+          useValue: tenantService,
         },
         {
           provide: SubscriptionService,
-          useValue: {
-            createTrial: jest.fn(),
-          },
+          useValue: subscriptionService,
         },
         {
           provide: JwtService,
-          useValue: {
-            sign: jest.fn(),
-          },
+          useValue: jwtService,
         },
       ],
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
-    userRepository = module.get(IUserRepository);
-    tenantService = module.get(TenantService);
-    subscriptionService = module.get(SubscriptionService);
-    jwtService = module.get(JwtService);
   });
 
   describe('register', () => {
@@ -115,6 +116,40 @@ describe('AuthService', () => {
       await expect(authService.register(registerData)).rejects.toThrow(
         'El correo electrónico ya está en uso',
       );
+    });
+  });
+
+  describe('validateOrCreateSocialUser', () => {
+    it('should return the existing user if already exists', async () => {
+      const userData = { email: 'test@example.com', name: 'Test User' };
+      const mockUser = { id: 'user-uuid', ...userData };
+
+      userRepository.findByEmail.mockResolvedValue(mockUser as any);
+
+      const result = await authService.validateOrCreateSocialUser(userData);
+
+      expect(userRepository.findByEmail).toHaveBeenCalledWith(userData.email);
+      expect(result).toEqual(mockUser);
+    });
+
+    it('should create a new user with tenantId: null if user does not exist', async () => {
+      const userData = { email: 'new@example.com', name: 'New User' };
+      const mockUser = { id: 'user-uuid', ...userData, tenantId: null, role: UserRole.MEMBER };
+
+      userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.create.mockReturnValue(mockUser as any);
+      userRepository.save.mockResolvedValue(mockUser as any);
+
+      const result = await authService.validateOrCreateSocialUser(userData);
+
+      expect(tenantService.create).not.toHaveBeenCalled();
+      expect(userRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: null,
+          role: UserRole.MEMBER,
+        }),
+      );
+      expect(result).toEqual(mockUser);
     });
   });
 });

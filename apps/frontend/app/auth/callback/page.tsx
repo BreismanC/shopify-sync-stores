@@ -28,8 +28,12 @@ export default function AuthCallbackPage() {
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
 
-        // Redirigir al dashboard
-        router.push('/dashboard');
+        // Redirigir según el tenant
+        if (!user.tenantId) {
+          router.push('/onboarding');
+        } else {
+          router.push('/dashboard');
+        }
       } catch (err) {
         console.error('Error parsing auth data:', err);
         setError('Error al procesar los datos de autenticación.');

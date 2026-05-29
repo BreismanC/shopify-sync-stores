@@ -2,6 +2,9 @@ import {
   Controller,
   Post,
   Body,
+  UseInterceptors,
+  HttpCode,
+  HttpStatus,
   UnauthorizedException,
   Get,
   UseGuards,
@@ -9,14 +12,21 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { ForgotPasswordUseCase } from '../use-cases/auth/forgot-password.use-case';
+import { ResetPasswordUseCase } from '../use-cases/auth/reset-password.use-case';
 import { AuthGuard } from '@nestjs/passport';
 import { RegisterDto } from './dtos/register.dto';
 import { User } from '../../domain/entities/user.entity';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
+    private readonly resetPasswordUseCase: ResetPasswordUseCase,
+  ) {}
 
   @Post('login')
   async login(@Body() loginDto: { email: string; password: string }) {
@@ -72,5 +82,20 @@ export class AuthController {
     return res.redirect(
       `${frontendUrl}/auth/callback?token=${token}&user=${encodedUser}`,
     );
+  }
+
+  @Post('forgot-password')
+  @Throttle({ short: { limit: 1, ttl: 300000 } })
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body('email') email: string) {
+    await this.forgotPasswordUseCase.execute(email);
+    return { message: 'Si el correo existe, se ha enviado un enlace de recuperación.' };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body('token') token: string, @Body('newPassword') newPassword: string) {
+    await this.resetPasswordUseCase.execute(token, newPassword);
+    return { message: 'Contraseña actualizada correctamente.' };
   }
 }

@@ -4,13 +4,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { User } from '../../domain/entities/user.entity';
+import { EmailService } from '../../infrastructure/services/email/resend.service';
+import { ForgotPasswordUseCase } from '../use-cases/auth/forgot-password.use-case';
+import { ResetPasswordUseCase } from '../use-cases/auth/reset-password.use-case';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { TypeORMUserRepository } from '../../infrastructure/repositories/TypeORMUserRepository';
 import { AuthController } from './auth.controller';
-import { IUserRepository } from './repositories/IUserRepository';
+import { IUSER_REPOSITORY } from './repositories/IUserRepository';
 import { TenantModule } from '../tenant/tenant.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 
@@ -31,12 +34,15 @@ import { SubscriptionModule } from '../subscription/subscription.module';
   controllers: [AuthController],
   providers: [
     AuthService,
+    EmailService,
+    ForgotPasswordUseCase,
+    ResetPasswordUseCase,
     LocalStrategy,
     JwtStrategy,
     GoogleStrategy,
     FacebookStrategy,
     {
-      provide: IUserRepository,
+      provide: IUSER_REPOSITORY,
       useClass: TypeORMUserRepository,
     },
   ],

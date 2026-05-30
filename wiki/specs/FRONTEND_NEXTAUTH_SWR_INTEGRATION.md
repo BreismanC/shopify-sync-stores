@@ -1,105 +1,108 @@
-# Frontend NextAuth + SWR Integration
+# Integración Frontend: NextAuth + SWR
 
-## Overview
+## Visión General
 
-This document describes the NextAuth + SWR integration implemented in the frontend application.
+Este documento describe la integración de NextAuth + SWR implementada en el frontend de la aplicación.
 
-## Architecture
+## Arquitectura
 
-### NextAuth Configuration
+### Configuración de NextAuth
 
-**File:** `apps/frontend/app/api/auth/[...nextauth]/route.ts`
+**Archivo:** `apps/frontend/app/api/auth/[...nextauth]/route.ts`
 
-- **Credentials Provider:** Receives `token`, `refreshToken`, and `user` from NestJS
-- **JWT Callback:** 
-  - Stores `accessToken`, `refreshToken`, and user data
-  - Checks token expiration (decodes `exp` claim)
-  - If exp < now + 5 minutes, calls `/api/auth/refresh` on NestJS
-  - Updates session with new tokens on refresh success
-- **Session Callback:** Passes `accessToken` and user data to client session
-- **Session Strategy:** JWT with 7-day max age (matches refresh token)
+- **Credentials Provider:** Recibe `token`, `refreshToken` y `user` desde NestJS.
+- **Callback jwt:**
+  - Almacena `accessToken`, `refreshToken` y datos del usuario.
+  - Verifica expiración del token (decodifica claim `exp`).
+  - Si exp < ahora + 5 minutos, llama a `/api/auth/refresh` en NestJS.
+  - Actualiza la sesión con nuevos tokens si el refresh es exitoso.
+- **Callback session:** Pasa `accessToken` y datos del usuario a la sesión del cliente.
+- **Estrategia de sesión:** JWT con edad máxima de 7 días (coincide con el refresh token).
 
-### Auth Callback Page
+### Página de Callback de Auth
 
-**File:** `apps/frontend/app/auth/callback/page.tsx`
+**Archivo:** `apps/frontend/app/auth/callback/page.tsx`
 
-- Extracts `token`, `refresh_token`, and `user` from URL query params
-- Uses `signIn('credentials', {...})` instead of localStorage
-- Redirects to `/dashboard` or `/onboarding` based on `tenantId`
+- Extrae `token`, `refresh_token` y `user` de los query params de la URL.
+- Usa `signIn('credentials', {...})` en lugar de localStorage.
+- Redirige a `/dashboard` o `/onboarding` según `tenantId`.
 
-## fetchWithAuth Helper
+## Helper fetchWithAuth
 
-**File:** `apps/frontend/lib/auth/fetch-with-auth.ts`
+**Archivo:** `apps/frontend/lib/auth/fetch-with-auth.ts`
 
-### Functions
+### Funciones
 
-- `fetchWithAuth<T>(url, options, accessToken)`: Direct authenticated fetch
-- `useAuthFetch<T>(url, options)`: SWR hook with automatic auth
-- `apiFetch<T>(endpoint, options, accessToken)`: Simple API fetch helper
+- `fetchWithAuth<T>(url, options, accessToken)`: Fetch autenticado directo.
+- `useAuthFetch<T>(url, options)`: Hook SWR con autenticación automática.
+- `apiFetch<T>(endpoint, options, accessToken)`: Helper simple de fetch API.
 
-### Usage
+### Uso
 
 ```typescript
-// Hook-based (recommended for data fetching)
+// Basado en hooks (recomendado para fetching de datos)
 const { data, error, isLoading } = useAuthFetch<User[]>('/api/users');
 
-// Direct fetch
+// Fetch directo
 const users = await apiFetch<User[]>('/api/users');
 
-// Manual fetch
+// Fetch manual
 const users = await fetchWithAuth<User[]>('/api/users', {}, accessToken);
 ```
 
-### Features
+### Funcionalidades
 
-- Automatically attaches `Authorization: Bearer <token>` header
-- Handles 401 errors by redirecting to login
-- SWR provides automatic revalidation and caching
-- Configurable retry and refresh intervals
+- Adjunta automáticamente el header `Authorization: Bearer ***`.
+- Maneja errores 401 redirigiendo al login.
+- SWR provee revalidación y cacheo automático.
+- Intervalos de reintento y refresh configurables.
 
 ## SessionProvider
 
-**File:** `apps/frontend/components/providers/next-auth-provider.tsx`
+**Archivo:** `apps/frontend/components/providers/next-auth-provider.tsx`
 
-Wraps the application with NextAuth's `SessionProvider`.
+ Envuelve la aplicación con el `SessionProvider` de NextAuth.
 
-**File:** `apps/frontend/app/layout.tsx`
+**Archivo:** `apps/frontend/app/layout.tsx`
 
-Root layout uses `NextAuthProvider`.
+El layout raíz usa `NextAuthProvider`.
 
-## Environment Variables
+## Variables de Entorno
 
 ```env
-NEXTAUTH_SECRET=your-secret-key
-NEXTAUTH_URL=http://localhost:3000
-BACKEND_URL=http://localhost:4000
-NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+AUTH_SECRET="<secret-para-firmar-jwt>"
+NEXTAUTH_URL="http://localhost:3000"
+BACKEND_URL="http://localhost:3001"
 ```
 
-## File Structure
+## Estructura de Archivos
 
 ```
 apps/frontend/
 ├── app/
-│   ├── api/auth/[...nextauth]/route.ts  # NextAuth handler
-│   ├── auth/callback/page.tsx            # OAuth callback handler
-│   ├── layout.tsx                        # Root layout with SessionProvider
-│   └── page.tsx                          # Home redirect
+│   ├── api/auth/[...nextauth]/route.ts  # Handler de NextAuth
+│   ├── auth/
+│   │   ├── callback/page.tsx            # Handler de callback OAuth
+│   │   ├── login/page.tsx                # Página de login
+│   │   └── register/page.tsx            # Página de registro
+│   ├── (protected)/                     # Grupo de rutas protegidas
+│   │   ├── dashboard/page.tsx
+│   │   └── onboarding/page.tsx
+│   ├── layout.tsx                       # Layout raíz con SessionProvider
+│   └── page.tsx                         # Home redirect
 ├── components/
 │   └── providers/
-│       └── next-auth-provider.tsx        # SessionProvider wrapper
+│       └── next-auth-provider.tsx       # Wrapper de SessionProvider
 ├── lib/auth/
-│   ├── fetch-with-auth.ts                # SWR + auth helper
-│   └── index.ts                          # Exports
-└── package.json
+│   └── fetch-with-auth.ts               # Helper SWR + auth
+└── middleware.ts                        # Guards de rutas
 ```
 
-## Dependencies
+## Dependencias
 
 ```json
 {
   "next-auth": "^5.0.0-beta.25",
-  "swr": "^2.3.0",
-  "jose": "^6.0.0"
+  "swr": "^2.3.0"
 }
 ```

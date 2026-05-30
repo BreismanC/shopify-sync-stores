@@ -6,6 +6,7 @@ const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'development-secret-chang
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   secret: NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
@@ -16,12 +17,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         user: { label: 'User', type: 'text' },
       },
       async authorize(credentials) {
+        console.log('[NextAuth] authorize called with credentials:', {
+          hasToken: !!credentials?.token,
+          hasRefreshToken: !!credentials?.refreshToken,
+          hasUser: !!credentials?.user,
+        });
+
         if (!credentials?.token || !credentials?.refreshToken || !credentials?.user) {
+          console.log('[NextAuth] authorize: missing credentials, returning null');
           return null;
         }
 
         try {
           const user = JSON.parse(credentials.user as string);
+          console.log('[NextAuth] authorize: user parsed successfully:', user.email);
 
           return {
             id: user.id,
@@ -30,7 +39,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             tenantId: user.tenantId,
             role: user.role,
           };
-        } catch {
+        } catch (err) {
+          console.error('[NextAuth] authorize: error parsing user:', err);
           return null;
         }
       },

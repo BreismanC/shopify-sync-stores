@@ -62,10 +62,32 @@ export function RegisterForm() {
       }
 
       const result: AuthResponse = await response.json();
-      localStorage.setItem('token', result.access_token);
-      localStorage.setItem('user', JSON.stringify(result.user));
+      
+      // Llamar a nuestra API route que usa signIn de NextAuth en el servidor
+      const signInRes = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: result.access_token,
+          refreshToken: (result as any).refresh_token || result.access_token,
+          user: JSON.stringify(result.user),
+        }),
+      });
+
+      const authResult = await signInRes.json();
+
+      if (authResult.error) {
+        console.error('Auth error:', authResult.error);
+        toast.error('Error al crear la sesión');
+        setFetchStatus('error');
+        return;
+      }
+
       toast.success("Cuenta creada correctamente");
-      router.push('/dashboard');
+      
+      // Redirigir según si tiene tenant o no
+      const redirectUrl = result.user?.tenantId ? '/dashboard' : '/onboarding';
+      window.location.href = redirectUrl;
       setFetchStatus('success');
     } catch (err: any) {
       toast.error(err.message || "Error al registrarse");

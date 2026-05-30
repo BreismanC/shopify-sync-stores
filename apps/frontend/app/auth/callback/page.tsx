@@ -54,12 +54,29 @@ function AuthCallbackContent() {
       try {
         const user = JSON.parse(userJson);
         
-        // Guardar en el storage
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        // Llamar a nuestra API route que usa signIn de NextAuth en el servidor
+        const signInRes = await fetch('/api/auth/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: token,
+            refreshToken: '',
+            user: JSON.stringify(user),
+          }),
+        });
 
-        // Redirigir al dashboard
-        router.push('/dashboard');
+        const authResult = await signInRes.json();
+
+        if (authResult.error) {
+          console.error('Auth error:', authResult.error);
+          setError('Error al crear la sesión.');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Redirigir según si tiene tenant o no
+        const redirectUrl = user.tenantId ? '/dashboard' : '/onboarding';
+        window.location.href = redirectUrl;
       } catch (err) {
         console.error('Error parsing auth data:', err);
         setError('Error al procesar los datos de autenticación.');

@@ -41,6 +41,23 @@ The implementation follows **Clean Architecture** and **SOLID** principles:
 ## Integration for Frontend
 The frontend must implement a listener on the `/auth/callback` route to:
 1. Extract `token` and `user` from the URL.
-2. Store the token (e.g., in LocalStorage or a Cookie).
-3. Update the application state with the user info.
-4. Redirect the user to the intended landing page (e.g., Dashboard).
+2. Call `POST /api/auth/signin` with `{ token, user }` to establish the NextAuth session.
+3. Redirect the user to the intended landing page (e.g., Dashboard).
+
+### Backend Callback Redirect Format
+```
+GET /auth/google/callback?token=<jwt>&user=<url-encoded-json>
+GET /auth/facebook/callback?token=<jwt>&user=<url-encoded-json>
+```
+
+Redirects to: `{FRONTEND_URL}/auth/callback?token=<jwt>&user=<encoded-user-json>`
+
+## Frontend Callback Implementation
+
+The frontend callback page (`/auth/callback`) performs:
+1. Extract `token` from `searchParams.get('token')`
+2. Parse `user` from `searchParams.get('user')` (URL-decoded JSON)
+3. `POST /api/auth/signin` with `{ token, email, name }` — server-side `signIn('credentials', { redirect: false })` stores JWT in session
+4. Redirect to `/dashboard`
+
+This ensures NextAuth manages the session cookie server-side, avoiding CSRF/cookie issues that occur with client-side `signIn()` calls.

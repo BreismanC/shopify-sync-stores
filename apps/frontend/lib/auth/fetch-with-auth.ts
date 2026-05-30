@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import type { Session } from 'next-auth';
 import useSWR, { SWRConfiguration, SWRResponse } from 'swr';
 import { useRouter } from 'next/navigation';
 
@@ -79,18 +80,11 @@ export function useAuthFetch<T = unknown>(
     },
   };
 
-  // Extract SWR-specific options, remaining go to fetch
-  const swrSpecificOptions = {
-    revalidateOnFocus,
-    revalidateOnReconnect,
-    dedupingInterval,
-    refreshInterval,
-  };
-
+  // Pass SWR-specific options to useSWR
   const swrResponse = useSWR<T, AuthFetchError>(
     url && status === 'authenticated' ? [url, accessToken] : null,
     ([fetchUrl, token]) => fetchWithAuth<T>(fetchUrl, options, token as string),
-    { ...swrConfig, ...swrSpecificOptions },
+    swrConfig,
   );
 
   return swrResponse;

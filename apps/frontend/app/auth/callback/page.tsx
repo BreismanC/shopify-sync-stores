@@ -1,10 +1,40 @@
 "use client";
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AlertStatus from '@/components/AlertStatus';
 
-export default function AuthCallbackPage() {
+function LoadingFallback() {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      gap: '16px',
+      fontFamily: 'system-ui, sans-serif',
+    }}>
+      <div style={{
+        width: '40px',
+        height: '40px',
+        border: '3px solid #e5e5e5',
+        borderTopColor: '#000',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+      }} />
+      <p>Loading...</p>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -63,5 +93,13 @@ export default function AuthCallbackPage() {
         <p className="text-muted-foreground">Completando el inicio de sesión...</p>
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

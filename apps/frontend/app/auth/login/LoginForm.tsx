@@ -30,7 +30,7 @@ export function LoginForm() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submitting form");
+    console.log("Submitting form")
     const values = getValues() as LoginCredentials;
 
     if (!isValid) {
@@ -59,11 +59,62 @@ export function LoginForm() {
       }
 
       const result = await response.json();
-      localStorage.setItem("token", result.access_token);
-      localStorage.setItem("user", JSON.stringify(result.user));
+
+      // Store user data for tenant check
+      const userData = result.user;
+
+      // Llamar a nuestra API route que usa signIn de NextAuth en el servidor
+      const signInRes = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: result.access_token,
+          refreshToken: result.refresh_token || result.access_token,
+          user: JSON.stringify(result.user),
+        }),
+      });
+
+      const authResult = await signInRes.json();
+
+      if (authResult.error) {
+        console.error('Auth error:', authResult.error);
+        toast.error('Error al iniciar sesión');
+        setFetchStatus('error');
+        return;
+      }
+
       toast.success("Has iniciado sesión correctamente");
-      router.push("/dashboard");
-      setFetchStatus("success");
+
+      // Login: verificar si tiene tenants
+      // Si no tiene tenant → onboarding
+      // Si tiene 1 tenant → dashboard
+      // Si tiene múltiples → tenant-selector
+      try {
+        const tenantsRes = await fetch('/api/auth/tenant', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (tenantsRes.ok) {
+          const tenantsData = await tenantsRes.json();
+          const tenants = tenantsData.tenants || [];
+
+          if (tenants.length === 0) {
+            window.location.href = '/onboarding';
+          } else if (tenants.length === 1) {
+            window.location.href = '/dashboard';
+          } else {
+            window.location.href = '/tenant-selector';
+          }
+        } else {
+          // Si falla, ir a dashboard por defecto
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        window.location.href = '/dashboard';
+      }
+
+      setFetchStatus('success');
     } catch (err: any) {
       toast.error(err.message || "Error al iniciar sesión");
       setFetchStatus("error");

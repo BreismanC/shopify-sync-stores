@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -28,7 +28,7 @@ import { SubscriptionModule } from '../subscription/subscription.module';
         signOptions: { expiresIn: '1d' },
       }),
     }),
-    TenantModule,
+    forwardRef(() => TenantModule),
     SubscriptionModule,
   ],
   controllers: [AuthController],
@@ -46,6 +46,6 @@ import { SubscriptionModule } from '../subscription/subscription.module';
       useClass: TypeORMUserRepository,
     },
   ],
-  exports: [AuthService],
+  exports: [AuthService, IUserRepository],
 })
 export class AuthModule {}

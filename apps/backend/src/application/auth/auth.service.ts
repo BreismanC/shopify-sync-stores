@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { IUserRepository } from './repositories/IUserRepository';
+import { IUSER_REPOSITORY, type IUserRepository } from './repositories/IUserRepository';
 import * as bcrypt from 'bcrypt';
 import { User } from '../../domain/entities/user.entity';
 import { UserRole } from '../../domain/enums/user-role.enum';
@@ -11,7 +11,7 @@ import { SubscriptionService } from '../subscription/subscription.service';
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject(IUserRepository)
+    @Inject(IUSER_REPOSITORY)
     private readonly userRepository: IUserRepository,
     private readonly jwtService: JwtService,
     private readonly tenantService: TenantService,
@@ -98,13 +98,10 @@ export class AuthService {
       return existingUser;
     }
 
-    // Si no existe, crear un nuevo Tenant
-    const tenant = await this.tenantService.create(data.name);
-
     const user = this.userRepository.create({
       email: data.email,
       name: data.name,
-      tenantId: tenant.id,
+      tenantId: undefined,
       role: UserRole.MEMBER,
     });
 

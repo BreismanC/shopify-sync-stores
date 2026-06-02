@@ -26,4 +26,8 @@ export class TypeORMUserRepository implements IUserRepository {
   create(user: Partial<User>): User {
     return this.userRepository.create(user);
   }
+
+  async updatePassword(email: string, password: string): Promise<void> {
+    await this.userRepository.update({ email }, { password });
+  }
 }

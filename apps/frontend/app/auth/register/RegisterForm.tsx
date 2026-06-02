@@ -85,9 +85,8 @@ export function RegisterForm() {
 
       toast.success("Cuenta creada correctamente");
       
-      // Redirigir según si tiene tenant o no
-      const redirectUrl = result.user?.tenantId ? '/dashboard' : '/onboarding';
-      window.location.href = redirectUrl;
+      // Register con formulario → siempre al onboarding para configurar tenant
+      window.location.href = '/onboarding';
       setFetchStatus('success');
     } catch (err: any) {
       toast.error(err.message || "Error al registrarse");

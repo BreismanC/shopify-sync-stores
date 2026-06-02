@@ -55,6 +55,10 @@ export function LoginForm() {
 
       const result = await response.json();
       
+      // Store user data for tenant check
+      const userData = result.user;
+      const hasTenant = !!userData?.tenantId;
+      
       // Llamar a nuestra API route que usa signIn de NextAuth en el servidor
       const signInRes = await fetch('/api/auth/signin', {
         method: 'POST',
@@ -76,7 +80,36 @@ export function LoginForm() {
       }
 
       toast.success("Has iniciado sesión correctamente");
-      window.location.href = authResult.url || '/dashboard';
+
+      // Login: verificar si tiene tenants
+      // Si no tiene tenant → onboarding
+      // Si tiene 1 tenant → dashboard
+      // Si tiene múltiples → tenant-selector
+      try {
+        const tenantsRes = await fetch('/api/auth/tenant', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (tenantsRes.ok) {
+          const tenantsData = await tenantsRes.json();
+          const tenants = tenantsData.tenants || [];
+
+          if (tenants.length === 0) {
+            window.location.href = '/onboarding';
+          } else if (tenants.length === 1) {
+            window.location.href = '/dashboard';
+          } else {
+            window.location.href = '/tenant-selector';
+          }
+        } else {
+          // Si falla, ir a dashboard por defecto
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        window.location.href = '/dashboard';
+      }
+
       setFetchStatus('success');
     } catch (err: any) {
       toast.error(err.message || "Error al iniciar sesión");

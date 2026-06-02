@@ -18,7 +18,10 @@
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
-    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
+    "emitDeclarationOnly": false,
+    "jsx": "react-jsx",
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false

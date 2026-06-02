@@ -1,0 +1,41 @@
+{
+  "name": "@repo/transactional",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./emails": {
+      "import": "./dist/emails/index.js",
+      "require": "./dist/emails/index.js",
+      "types": "./dist/emails/index.d.ts"
+    },
+    "./emails/*": {
+      "import": "./dist/emails/*.js",
+      "require": "./dist/emails/*.js",
+      "types": "./dist/emails/*.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "emails:dev": "email dev --port 5001"
+  },
+  "devDependencies": {
+    "@react-email/ui": "6.3.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.2.6",
+    "react-dom": "19.2.6",
+    "react-email": "6.3.0",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@react-email/components": "^0.0.32"
+  }
+}

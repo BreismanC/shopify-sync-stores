@@ -27,8 +27,6 @@ export function RegisterForm() {
 
   const {name, email, companyName, password} = getFields();
 
-  console.log("values", getValues());
-
   const {isValid, errors} = validateFormData(registerSchema, getValues());
 
   const formErrors = errors || undefined;

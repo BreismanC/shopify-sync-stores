@@ -5,7 +5,7 @@ const rootPath = path.resolve(__dirname, "../..");
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: rootPath,
+    // root: rootPath,
   },
   outputFileTracingRoot: rootPath,
 };

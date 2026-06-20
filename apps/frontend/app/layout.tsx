@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { NextAuthProvider } from "@/components/providers/next-auth-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,10 +24,12 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-          {children}
-          <Toaster richColors position="bottom-right" />
-      </body>
+<body className="min-h-full flex flex-col">
+          <NextAuthProvider>
+            {children}
+            <Toaster richColors position="bottom-right" />
+          </NextAuthProvider>
+        </body>
     </html>
   );
 }

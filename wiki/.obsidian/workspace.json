@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "analista_profile.md",
+                "file": "specs/MATRIZ_TRAZABILIDAD.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "analista_profile"
+              "title": "MATRIZ_TRAZABILIDAD"
             }
           }
         ]
@@ -185,12 +185,15 @@
   },
   "active": "06461d2837e544ec",
   "lastOpenFiles": [
+    "features/SERVERLESS_ARCHITECTURE.md",
+    "specs/FRONTEND_NEXTAUTH_SWR_INTEGRATION.md",
+    "specs/DEFINITION_OF_DONE.md",
+    "specs/AUTH_FLOW_NEXTAUTH_INTEGRATION.md",
+    "analista_profile.md",
     "specs/USER_STORIES.md",
     "ESTRUCTURA_GENERAL.md",
-    "analista_profile.md",
     "specs/SCRAPING_GUIDE.md",
     "specs/REQUERIMIENTOS_GENERALES.md",
-    "specs/MATRIZ_TRAZABILIDAD.md",
-    "specs/DEFINITION_OF_DONE.md"
+    "specs/MATRIZ_TRAZABILIDAD.md"
   ]
 }

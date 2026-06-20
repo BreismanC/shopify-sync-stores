@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { Suspense, useState, useRef } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Form, FormField, FormSubmit } from "@/components/ui/Form";
@@ -10,7 +10,7 @@ import { resetPasswordSchema } from "@/schemas/auth";
 import { validateFormData } from "@/utils/web-validation";
 import { Card } from "@/components/ui/Card";
 
-export default function PasswordRecoveryReset() {
+function PasswordRecoveryResetInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -86,5 +86,13 @@ export default function PasswordRecoveryReset() {
         </Form>
       </Card>
     </div>
+  );
+}
+
+export default function PasswordRecoveryReset() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Cargando...</div>}>
+      <PasswordRecoveryResetInner />
+    </Suspense>
   );
 }

@@ -43,12 +43,12 @@ export const Form = React.forwardRef<HTMLFormElement, FormProps>(
           });
         }
 
-        if (child.props?.children) {
+        if ((child.props as any)?.children) {
           const processedChildren = processChildren(
-            React.Children.toArray(child.props.children)
+            React.Children.toArray((child.props as any).children)
           );
           return React.cloneElement(child as React.ReactElement, {
-            ...child.props,
+            ...(child.props as any),
             children: processedChildren,
           });
         }
@@ -103,7 +103,7 @@ export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
     forwardedRef
   ) => {
     const classNameConnect: string[] = ["flex flex-col gap-0.5"];
-    const hasError = field.touch && errors && errors.length > 0;
+    const hasError = field?.touch && errors && errors.length > 0;
     const hasSelect = React.Children.toArray(children).some(
       (child: any) => child?.type === "select"
     );
@@ -117,7 +117,7 @@ export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
     return (
       <FormRadix.Field
         className={classNameConnect.join(" ")}
-        name={name}
+        name={name || ''}
         {...props}
         serverInvalid={hasError}
         ref={forwardedRef}
@@ -163,7 +163,7 @@ export const FormSwitch = React.forwardRef<HTMLDivElement, FormSwitchProps>(
     { labelProps, label, controlProps, field, children, id, errors, ...props },
     forwardedRef
   ) => {
-    const hasError = field.touch && errors && errors.length > 0;
+    const hasError = field?.touch && errors && errors.length > 0;
     const idConnect = id ? id : React.useId();
     const name = props.name || field?.name;
 
@@ -171,7 +171,7 @@ export const FormSwitch = React.forwardRef<HTMLDivElement, FormSwitchProps>(
       <FormRadix.Field
         {...props}
         ref={forwardedRef}
-        name={name}
+        name={name || ''}
         serverInvalid={hasError}
       >
         <div className="flex items-center gap-1">
@@ -217,14 +217,14 @@ export const FormCheckbox = React.forwardRef<HTMLDivElement, FormCheckboxProps>(
     { labelProps, label, controlProps, field, children, id, errors, disabled, ...props },
     forwardedRef
   ) => {
-    const hasError = field.touch && errors && errors.length > 0;
+    const hasError = field?.touch && errors && errors.length > 0;
     const idConnect = id ? id : React.useId();
     const name = props.name || field?.name;
     return (
       <FormRadix.Field
         {...props}
         ref={forwardedRef}
-        name={name}
+        name={name || ''}
         serverInvalid={hasError}
       >
         <div className="flex items-center gap-1">
@@ -296,14 +296,14 @@ export const FormSelect = React.forwardRef<HTMLDivElement, FormSelectProps>(
       <FormRadix.Field
         {...props}
         ref={forwardedRef}
-        name={name}
+        name={name || ''}
         serverInvalid={hasError}
         className={cn("flex flex-col gap-0.5", props.className)}
       >
         {label && <FormRadix.Label id={idConnect} {...labelProps}>{label}</FormRadix.Label>}
         <div className="relative flex-1">
           <Select
-            name={name}
+            name={name || ''}
             key={field?.value ? `status-${field?.value}` : `status-initial`}
             value={currentValue}
             onValueChange={handleValueChange}
@@ -325,7 +325,7 @@ export const FormSelect = React.forwardRef<HTMLDivElement, FormSelectProps>(
           <FormRadix.Control
             id={idConnect}
             value={currentValue}
-            name={name}
+            name={name || ''}
             {...controlProps}
             className="hidden"
           />
@@ -397,7 +397,7 @@ export const FormCheckboxGroup = React.forwardRef<
       <FormRadix.Field
         {...props}
         ref={forwardedRef}
-        name={name}
+        name={name || ''}
         serverInvalid={hasError}
         className={className}
       >
@@ -484,7 +484,7 @@ export const FormRadioGroup = React.forwardRef<
       <FormRadix.Field
         {...props}
         ref={forwardedRef}
-        name={name}
+        name={name || ''}
         serverInvalid={hasError}
         className={className}
       >
@@ -532,7 +532,7 @@ export const FormRadioGroup = React.forwardRef<
           <FormRadix.Control
             id={idConnect}
             value={fieldValue}
-            name={name}
+            name={name || ''}
             {...controlProps}
             className="hidden"
           />
@@ -564,6 +564,6 @@ export const FormAlert = ({ formData, className, ...props }: FormAlertProps) => 
   }
 
   return (
-    <AlertStatus status="danger" {...props} description={formData.error} className={className} />
+    <AlertStatus status="danger" description={formData.error} />
   );
 };

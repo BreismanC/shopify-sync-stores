@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
+  - "apps/functions"
   - "packages/*"
+  - "packages/database"
+  - "packages/config"

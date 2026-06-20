@@ -9,27 +9,35 @@ import { TenantModule } from './application/tenant/tenant.module';
 import { SubscriptionModule } from './application/subscription/subscription.module';
 import { StoreModule } from './application/store/store.module';
 import { TeamMemberModule } from './application/team-member/team.module';
+import { TeamInvitationModule } from './application/team-invitation/team-invitation.module';
+import { OnboardingModule } from './application/onboarding/onboarding.module';
+import { MercadoPagoModule } from './infrastructure/mercadopago/mercadopago.module';
+import { EmailModule } from './infrastructure/services/email/email.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ThrottlerModule.forRoot([{
-      name: 'short',
-      ttl: 300000, // 5 min
-      limit: 3,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 300000, // 5 min
+        limit: 3,
+      },
+    ]),
     DatabaseModule,
     AuthModule,
     TenantModule,
     SubscriptionModule,
     StoreModule,
     TeamMemberModule,
+    TeamInvitationModule,
+    OnboardingModule,
+    MercadoPagoModule,
+    EmailModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-  ],
+  providers: [AppService],
 })
 export class AppModule {}

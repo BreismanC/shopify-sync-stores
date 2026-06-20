@@ -4,6 +4,11 @@ import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AlertStatus from '@/components/AlertStatus';
+import {
+  OnboardingStatus,
+  isValidStatus,
+  statusToStep,
+} from '@/lib/auth/onboarding-status';
 
 function LoadingFallback() {
   return (
@@ -53,7 +58,7 @@ function AuthCallbackContent() {
 
       try {
         const user = JSON.parse(userJson);
-        
+
         // Llamar a nuestra API route que usa signIn de NextAuth en el servidor
         const signInRes = await fetch('/api/auth/signin', {
           method: 'POST',
@@ -74,33 +79,39 @@ function AuthCallbackContent() {
           return;
         }
 
-        // Redirigir según tenants del usuario
-        // Login con provider: verificar si tiene tenants
-        // Si no tiene tenant → onboarding
-        // Si tiene 1 tenant → dashboard
-        // Si tiene múltiples → tenant-selector
-        try {
-          const tenantsRes = await fetch('/api/auth/tenant', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-          });
+        // Redirección por onboardingStatus (no por tenantId).
+        const onboardingStatus: OnboardingStatus = isValidStatus(
+          user.onboardingStatus,
+        )
+          ? (user.onboardingStatus as OnboardingStatus)
+          : OnboardingStatus.PENDING_TENANT_CONFIG;
 
-          if (tenantsRes.ok) {
-            const tenantsData = await tenantsRes.json();
-            const tenants = tenantsData.tenants || [];
+        if (onboardingStatus === OnboardingStatus.COMPLETED) {
+          // Onboarding completo: revisar tenants
+          try {
+            const tenantsRes = await fetch('/api/auth/tenant', {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            });
 
-            if (tenants.length === 0) {
-              window.location.href = '/onboarding';
-            } else if (tenants.length === 1) {
-              window.location.href = '/dashboard';
+            if (tenantsRes.ok) {
+              const tenantsData = await tenantsRes.json();
+              const tenants = tenantsData.tenants || [];
+              if (tenants.length >= 2) {
+                window.location.href = '/tenant-selector';
+              } else {
+                window.location.href = '/dashboard';
+              }
             } else {
-              window.location.href = '/tenant-selector';
+              window.location.href = '/dashboard';
             }
-          } else {
+          } catch {
             window.location.href = '/dashboard';
           }
-        } catch {
-          window.location.href = '/onboarding';
+        } else {
+          // Onboarding pendiente: ir al step derivado del status
+          const step = statusToStep(onboardingStatus);
+          window.location.href = `/onboarding?step=${step}`;
         }
       } catch (err) {
         console.error('Error parsing auth data:', err);

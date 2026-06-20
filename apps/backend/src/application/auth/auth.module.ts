@@ -46,6 +46,6 @@ import { SubscriptionModule } from '../subscription/subscription.module';
       useClass: TypeORMUserRepository,
     },
   ],
-  exports: [AuthService, IUserRepository],
+  exports: [AuthService, IUSER_REPOSITORY],
 })
 export class AuthModule {}

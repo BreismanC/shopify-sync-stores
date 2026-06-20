@@ -1,0 +1,7 @@
+{
+  "action": "invoke",
+  "function": {
+    "name": "CheckPendingPayments"
+  },
+  "Payload": {}
+}

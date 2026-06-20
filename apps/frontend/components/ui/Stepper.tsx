@@ -6,9 +6,9 @@ import { CheckIcon } from "@radix-ui/react-icons";
 import * as React from "react";
 import { useComposedRefs } from "@/utils/compose-refs";
 import { cn } from "@/utils/class-names";
-import { useAsRef } from "@/src/hooks/use-as-ref";
-import { useIsomorphicLayoutEffect } from "@/src/hooks/use-isomorphic-layout-effect";
-import { useLazyRef } from "@/src/hooks/use-lazy-ref";
+import { useAsRef } from "@/hooks/use-as-ref";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
+import { useLazyRef } from "@/hooks/use-lazy-ref";
 
 const ROOT_NAME = "Stepper";
 const LIST_NAME = "StepperList";

@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import jwt from 'jsonwebtoken';
+import { OnboardingStatus, isValidStatus } from '@/lib/auth/onboarding-status';
 
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'development-secret-change-in-production';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
@@ -38,6 +39,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name,
             tenantId: user.tenantId,
             role: user.role,
+            accessToken: credentials.token as string,
+            refreshToken: credentials.refreshToken as string,
+            onboardingStatus: isValidStatus(user.onboardingStatus)
+              ? user.onboardingStatus
+              : OnboardingStatus.PENDING_TENANT_CONFIG,
           };
         } catch (err) {
           console.error('[NextAuth] authorize: error parsing user:', err);
@@ -53,14 +59,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.accessToken = token.accessToken || (user as any).accessToken;
         token.refreshToken = token.refreshToken || (user as any).refreshToken;
         token.user = user;
+        token.onboardingStatus = (user as any).onboardingStatus;
       }
 
       // Check if token is expired or about to expire
       if (token.accessToken) {
         try {
-          const decoded = jwt.decode(token.accessToken as string) as { exp?: number } | null;
+          const decoded = jwt.decode(token.accessToken as string) as { exp?: number; onboardingStatus?: string } | null;
           const now = Math.floor(Date.now() / 1000);
           const fiveMinutes = 5 * 60;
+
+          // Si el JWT trae un onboardingStatus más reciente (caso común
+          // cuando el usuario avanza de paso), reflejarlo acá.
+          if (decoded?.onboardingStatus && isValidStatus(decoded.onboardingStatus)) {
+            token.onboardingStatus = decoded.onboardingStatus;
+          }
 
           if (decoded?.exp && decoded.exp < now + fiveMinutes) {
             // Token is about to expire, attempt refresh
@@ -77,6 +90,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   token.accessToken = refreshData.access_token;
                   token.refreshToken = refreshData.refresh_token;
                   token.user = refreshData.user;
+                  if (refreshData.user?.onboardingStatus && isValidStatus(refreshData.user.onboardingStatus)) {
+                    token.onboardingStatus = refreshData.user.onboardingStatus;
+                  }
                 } else {
                   // Refresh failed, return error
                   token.error = 'RefreshAccessTokenError';
@@ -93,11 +109,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
-      // Handle session update (e.g., from signOut)
+      // Handle session update (e.g., from signOut or step advance)
       if (trigger === 'update' && session) {
         token.accessToken = session.accessToken;
         token.refreshToken = session.refreshToken;
         token.user = session.user;
+        if (session.onboardingStatus && isValidStatus(session.onboardingStatus)) {
+          token.onboardingStatus = session.onboardingStatus;
+        }
       }
 
       return token;
@@ -111,7 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.accessToken) {
         session.accessToken = token.accessToken;
       }
-      
+
       if (token.refreshToken) {
         session.refreshToken = token.refreshToken;
       }
@@ -124,6 +143,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: token.user.name,
           tenantId: token.user.tenantId,
           role: token.user.role,
+          onboardingStatus: isValidStatus(token.onboardingStatus)
+            ? token.onboardingStatus
+            : (token.user.onboardingStatus as OnboardingStatus) ||
+              OnboardingStatus.PENDING_TENANT_CONFIG,
+        };
+      } else if (token.onboardingStatus) {
+        // Sin user en el token, pero al menos propagamos el status
+        session.user = {
+          ...session.user,
+          onboardingStatus: isValidStatus(token.onboardingStatus)
+            ? token.onboardingStatus
+            : OnboardingStatus.PENDING_TENANT_CONFIG,
         };
       }
 

@@ -19,6 +19,10 @@ export class TypeORMUserRepository implements IUserRepository {
     return this.userRepository.findOne({ where: { id } });
   }
 
+  async findByTenantId(tenantId: string): Promise<User[]> {
+    return this.userRepository.find({ where: { tenantId } });
+  }
+
   async save(user: User): Promise<User> {
     return this.userRepository.save(user);
   }

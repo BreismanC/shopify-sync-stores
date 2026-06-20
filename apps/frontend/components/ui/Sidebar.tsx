@@ -5,7 +5,7 @@ import { Slot } from "@radix-ui/react-slot";
 
 import { HamburgerMenuIcon } from "@radix-ui/react-icons"
 
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/utils/class-names";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";

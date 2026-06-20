@@ -15,11 +15,11 @@ export class ResetPasswordUseCase {
   async execute(token: string, newPassword: string) {
     try {
       const payload = this.jwtService.verify(token);
-      console.log("newPassword received:", newPassword);
+      console.log('newPassword received:', newPassword);
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await this.userRepository.updatePassword(payload.email, hashedPassword);
     } catch (e) {
-      console.log("error en payload",e);
+      console.log('error en payload', e);
       throw new UnauthorizedException('Token inválido o expirado');
     }
   }

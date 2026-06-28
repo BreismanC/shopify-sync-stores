@@ -6,6 +6,7 @@ export type AuthResponse = {
     name: string;
     tenantId: string;
     role: string;
+    onboardingStatus?: string;
   };
 };
 

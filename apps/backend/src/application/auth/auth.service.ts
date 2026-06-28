@@ -70,6 +70,7 @@ export class AuthService {
     name: string;
     email: string;
     password: string;
+    companyName: string;
   }): Promise<User> {
     const existingUser = await this.userRepository.findByEmail(data.email);
     if (existingUser) {
@@ -78,9 +79,8 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // 1. Crear el Tenant (mismo nombre que el user; lo va a editar
-    //    en el paso 1 del onboarding).
-    const tenant = await this.tenantService.create(data.name);
+    // 1. Crear el Tenant con el nombre de empresa enviado en el formulario.
+    const tenant = await this.tenantService.create(data.companyName.trim());
 
     // 2. Crear la suscripción de prueba
     await this.subscriptionService.createTrial(tenant.id);

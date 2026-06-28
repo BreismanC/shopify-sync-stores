@@ -37,7 +37,7 @@ const ROLE_DESCRIPTIONS: Record<StoreRole, { title: string; description: string 
 
 export function Step4Role() {
   const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
   const [store, setStore] = useState<StoreInfo | null>(null);
@@ -46,6 +46,8 @@ export function Step4Role() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -67,7 +69,7 @@ export function Step4Role() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   async function handleSave() {
     if (!store || !selectedRole) {
@@ -87,7 +89,7 @@ export function Step4Role() {
       );
       toast.success("Rol guardado");
       await updateSession({ onboardingStatus: data.onboardingStatus });
-      nextStepAfterSave(4);
+      nextStepAfterSave(4, data.onboardingStatus);
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el rol");
       setIsSaving(false);

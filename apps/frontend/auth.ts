@@ -18,20 +18,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         user: { label: 'User', type: 'text' },
       },
       async authorize(credentials) {
-        console.log('[NextAuth] authorize called with credentials:', {
-          hasToken: !!credentials?.token,
-          hasRefreshToken: !!credentials?.refreshToken,
-          hasUser: !!credentials?.user,
-        });
-
         if (!credentials?.token || !credentials?.refreshToken || !credentials?.user) {
-          console.log('[NextAuth] authorize: missing credentials, returning null');
           return null;
         }
 
         try {
           const user = JSON.parse(credentials.user as string);
-          console.log('[NextAuth] authorize: user parsed successfully:', user.email);
 
           return {
             id: user.id,
@@ -45,8 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               ? user.onboardingStatus
               : OnboardingStatus.PENDING_TENANT_CONFIG,
           };
-        } catch (err) {
-          console.error('[NextAuth] authorize: error parsing user:', err);
+        } catch {
           return null;
         }
       },
@@ -68,12 +59,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const decoded = jwt.decode(token.accessToken as string) as { exp?: number; onboardingStatus?: string } | null;
           const now = Math.floor(Date.now() / 1000);
           const fiveMinutes = 5 * 60;
-
-          // Si el JWT trae un onboardingStatus más reciente (caso común
-          // cuando el usuario avanza de paso), reflejarlo acá.
-          if (decoded?.onboardingStatus && isValidStatus(decoded.onboardingStatus)) {
-            token.onboardingStatus = decoded.onboardingStatus;
-          }
 
           if (decoded?.exp && decoded.exp < now + fiveMinutes) {
             // Token is about to expire, attempt refresh
@@ -110,12 +95,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       // Handle session update (e.g., from signOut or step advance)
+      // IMPORTANT: NextAuth v5 wraps the data in session.data when
+      // updateSession({ onboardingStatus }) is called, so session is:
+      // { csrfToken, data: { onboardingStatus } }
+      // We must NOT overwrite existing token fields with undefined.
       if (trigger === 'update' && session) {
-        token.accessToken = session.accessToken;
-        token.refreshToken = session.refreshToken;
-        token.user = session.user;
-        if (session.onboardingStatus && isValidStatus(session.onboardingStatus)) {
-          token.onboardingStatus = session.onboardingStatus;
+        if (session.data?.accessToken !== undefined) {
+          token.accessToken = session.data.accessToken;
+        }
+        if (session.data?.refreshToken !== undefined) {
+          token.refreshToken = session.data.refreshToken;
+        }
+        if (session.data?.user !== undefined) {
+          token.user = session.data.user;
+        }
+        const newStatus = session.data?.onboardingStatus ?? session.onboardingStatus;
+        if (newStatus && isValidStatus(newStatus)) {
+          token.onboardingStatus = newStatus;
+          if (token.user) {
+            token.user = {
+              ...token.user,
+              onboardingStatus: newStatus,
+            };
+          }
+        }
+        const newTenantId = session.data?.tenantId ?? session.tenantId;
+        if (newTenantId !== undefined && token.user) {
+          token.user = {
+            ...token.user,
+            tenantId: newTenantId,
+          };
         }
       }
 

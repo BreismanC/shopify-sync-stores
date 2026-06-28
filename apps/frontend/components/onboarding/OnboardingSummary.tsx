@@ -29,7 +29,7 @@ interface SummaryData {
 export function OnboardingSummary() {
   const router = useRouter();
   const { goToStep } = useOnboardingNavigation();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
   const [data, setData] = useState<SummaryData | null>(null);
@@ -37,6 +37,8 @@ export function OnboardingSummary() {
   const [isConfirming, setIsConfirming] = useState(false);
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -80,7 +82,7 @@ export function OnboardingSummary() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   async function handleConfirm() {
     setIsConfirming(true);

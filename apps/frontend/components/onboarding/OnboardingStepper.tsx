@@ -117,8 +117,11 @@ export function useOnboardingNavigation() {
   }, [session?.user?.onboardingStatus]);
 
   const nextStepAfterSave = useCallback(
-    (step: number) => {
-      const target = userCurrentStep > step ? userCurrentStep : step + 1;
+    (step: number, updatedStatus?: OnboardingStatus) => {
+      const latestUserStep = updatedStatus
+        ? statusToStep(updatedStatus)
+        : userCurrentStep;
+      const target = latestUserStep > step ? latestUserStep : step + 1;
       const safe = Math.min(Math.max(target, 1), TOTAL_ONBOARDING_STEPS);
       router.push(`/onboarding?step=${safe}`);
     },

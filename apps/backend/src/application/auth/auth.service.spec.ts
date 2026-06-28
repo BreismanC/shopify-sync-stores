@@ -63,10 +63,11 @@ describe('AuthService', () => {
       const registerData = {
         name: 'Test User',
         email: 'test@example.com',
+        companyName: 'Acme Inc',
         password: '***',
       };
 
-      const mockTenant = { id: 'tenant-uuid', name: 'Test User' };
+      const mockTenant = { id: 'tenant-uuid', name: 'Acme Inc' };
       const mockUser = {
         id: 'user-uuid',
         email: 'test@example.com',
@@ -89,7 +90,9 @@ describe('AuthService', () => {
       expect(userRepository.findByEmail).toHaveBeenCalledWith(
         registerData.email,
       );
-      expect(tenantService.create).toHaveBeenCalledWith(registerData.name);
+      expect(tenantService.create).toHaveBeenCalledWith(
+        registerData.companyName,
+      );
       expect(subscriptionService.createTrial).toHaveBeenCalledWith(
         mockTenant.id,
       );
@@ -106,6 +109,7 @@ describe('AuthService', () => {
       const registerData = {
         name: 'Test User',
         email: 'existing@example.com',
+        companyName: 'Existing Inc',
         password: '***',
       };
 

@@ -105,6 +105,8 @@ export class OnboardingService {
       input.name.trim(),
     );
 
+    user.tenantId = tenant.id;
+
     if (user.onboardingStatus === OnboardingStatus.PENDING_TENANT_CONFIG) {
       user.onboardingStatus = OnboardingStatus.PENDING_PLAN_SELECTION;
       await this.userRepository.save(user);

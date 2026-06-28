@@ -33,7 +33,7 @@ const EMPTY_DRAFT: InvitationDraft = { name: "", email: "", role: "MEMBER" };
 
 export function Step5Team() {
   const { goToStep, goToSummary } = useOnboardingNavigation();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -42,6 +42,8 @@ export function Step5Team() {
   const [isInviting, setIsInviting] = useState(false);
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -60,7 +62,7 @@ export function Step5Team() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   async function handleInvite() {
     if (!draft.email.includes("@")) {

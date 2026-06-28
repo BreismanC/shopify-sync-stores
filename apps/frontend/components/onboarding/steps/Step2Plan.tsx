@@ -52,7 +52,7 @@ type BillingPeriod = "MONTHLY" | "YEARLY";
 
 export function Step2Plan() {
   const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
   const [plans, setPlans] = useState<PlanInfo[]>([]);
@@ -65,6 +65,8 @@ export function Step2Plan() {
   const [isSkipping, setIsSkipping] = useState(false);
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -84,7 +86,7 @@ export function Step2Plan() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   async function handleSelectAndPay() {
     if (!selectedPlan) {
@@ -126,7 +128,7 @@ export function Step2Plan() {
       );
       await updateSession({ onboardingStatus: data.onboardingStatus });
       toast.success("Probá gratis por 7 días");
-      nextStepAfterSave(2);
+      nextStepAfterSave(2, data.onboardingStatus);
     } catch (err: any) {
       toast.error(err.message || "Error al activar trial");
       setIsSkipping(false);

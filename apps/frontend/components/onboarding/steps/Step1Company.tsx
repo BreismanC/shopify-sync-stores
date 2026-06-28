@@ -21,7 +21,7 @@ interface TenantInfo {
 
 export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
   const { nextStepAfterSave } = useOnboardingNavigation();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
   const [existingTenant, setExistingTenant] = useState<TenantInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +32,8 @@ export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
     });
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -52,7 +54,7 @@ export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +69,10 @@ export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
     setFetchStatus("loading");
 
     try {
-      await apiFetch<{ tenant: TenantInfo; onboardingStatus: OnboardingStatus }>(
+      const data = await apiFetch<{
+        tenant: TenantInfo;
+        onboardingStatus: OnboardingStatus;
+      }>(
         `${BACKEND_URL}/api/onboarding/tenant`,
         {
           method: "POST",
@@ -82,18 +87,20 @@ export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
       );
 
       await updateSession({
-        onboardingStatus: OnboardingStatus.PENDING_PLAN_SELECTION,
+        onboardingStatus: data.onboardingStatus,
+        tenantId: data.tenant.id,
       });
 
+      setFetchStatus("success");
       onCompleted?.();
-      nextStepAfterSave(1);
+      nextStepAfterSave(1, data.onboardingStatus);
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");
       setFetchStatus("error");
     }
   };
 
-  if (isLoading) {
+  if (isLoading || status === "loading") {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />

@@ -25,7 +25,7 @@ interface StoreInfo {
 
 export function Step3Store() {
   const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
   const [existingStore, setExistingStore] = useState<StoreInfo | null>(null);
@@ -38,6 +38,8 @@ export function Step3Store() {
     });
 
   useEffect(() => {
+    if (status === "loading") return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -56,7 +58,7 @@ export function Step3Store() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, status]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +99,8 @@ export function Step3Store() {
 
       toast.success("Tienda conectada");
       await updateSession({ onboardingStatus: data.onboardingStatus });
-      nextStepAfterSave(3);
+      setFetchStatus("success");
+      nextStepAfterSave(3, data.onboardingStatus);
     } catch (err: any) {
       toast.error(err.message || "Error al conectar la tienda");
       setFetchStatus("error");

@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * @description A vertically stacked set of interactive headings that each reveal a section of content.
- */
-
 import React from "react";
 import { Accordion as AccordionRadix } from "radix-ui";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
@@ -39,13 +35,13 @@ function AccordionTrigger({
       <AccordionRadix.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "group flex justify-between flex-1 cursor-pointer items-center gap-1 p-1 w-full h6 border border-b-1 border-gray-6 border-x-0 border-t-0 px-2 disabled:opacity-50 disabled:cursor-not-allowed",
+          "group flex justify-between flex-1 cursor-pointer items-center gap-1 p-1 w-full h6 border border-b-1 border-gray-6 border-x-0 border-t-0 px-2",
           className
         )}
         {...props}
       >
         {children}
-        <ChevronDownIcon className="icon" />
+        <ChevronDownIcon className="group-data-[state=open]:rotate-180 transition duration-300" />
       </AccordionRadix.Trigger>
     </AccordionRadix.Header>
   );

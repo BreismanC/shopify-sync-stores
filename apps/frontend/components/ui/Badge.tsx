@@ -1,55 +1,35 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/utils/class-names"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/utils/class-names";
 
 const badgeVariants = cva(
-    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-    {
-        variants: {
-            variant: {
-                default:
-                    "border-transparent bg-gray-12 text-gray-1 hover:bg-gray-12/80",
-                secondary:
-                    "border-transparent bg-gray-3 text-gray-12 hover:bg-gray-3/80",
-                destructive:
-                    "border-transparent bg-danger text-danger-contrast hover:bg-danger/80",
-                outline: "text-gray-12",
-            },
-            status: {
-                default: "",
-                success: "border-transparent bg-success text-success-contrast hover:bg-success/80",
-                warning: "border-transparent bg-warning text-warning-contrast hover:bg-warning/80",
-                danger: "border-transparent bg-danger text-danger-contrast hover:bg-danger/80",
-                info: "border-transparent bg-info text-info-contrast hover:bg-info/80",
-            }
-        },
-        defaultVariants: {
-            variant: "default",
-            status: "default",
-        },
-    }
-)
+  "inline-flex items-center rounded-lg border px-1.5 py-0.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-8 focus:ring-offset-2",
+  {
+    variants: {
+      status: {
+        default: "bg-gray-2 text-gray-12 border-gray-6",
+        info: "bg-info text-info-contrast border-info-contrast",
+        success: "bg-success text-success-contrast border-success-contrast",
+        warning: "bg-warning text-warning-contrast border-warning-contrast",
+        danger: "bg-danger text-danger-contrast border-danger-contrast",
+      },
+    },
+    defaultVariants: {
+      status: "default",
+    },
+  }
+);
 
 export interface BadgeProps
-    extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {
-    asChild?: boolean
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, status, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ status }), className)} {...props} />
+  );
 }
 
-const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
-    ({ className, variant, status, asChild = false, ...props }, ref) => {
-        const Comp = asChild ? Slot : "div"
-        return (
-            <Comp
-                className={cn(badgeVariants({ variant, status }), className)}
-                ref={ref}
-                {...props}
-            />
-        )
-    }
-)
+export { Badge, badgeVariants };
 
-Badge.displayName = "Badge"
 
-export { Badge, badgeVariants }

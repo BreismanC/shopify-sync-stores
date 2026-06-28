@@ -17,6 +17,7 @@ function Checkbox({
       data-slot="checkbox"
       className={cn(
         "border border-gray-a6 flex size-1.5 items-center justify-center rounded outline-none hover:bg-accent-2 cursor-pointer",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent",
         className
       )}
       {...props}

@@ -1,15 +1,8 @@
 "use client";
-/**
- * @description Displays a menu of actions or options triggered by a button.
- */
+
 import * as React from "react";
 import { DropdownMenu as DropdownMenuRadix } from "radix-ui";
-import {
-  CheckIcon,
-  ChevronRightIcon,
-  CircleIcon,
-  DotFilledIcon,
-} from "@radix-ui/react-icons";
+import { CheckIcon, ChevronRightIcon, CircleIcon, DotFilledIcon } from "@radix-ui/react-icons";
 
 import { cn } from "@/utils/class-names";
 
@@ -34,7 +27,7 @@ function DropdownMenuTrigger({
   return (
     <DropdownMenuRadix.Trigger
       data-slot="dropdown-menu-trigger"
-      className={cn(className)}
+      className={cn("flex items-center justify-between gap-3 rounded-md  bg-gray-2 text-sm font-medium px-2 py-1 border border-gray-a6 data-[state=open]:rounded-md data-[state=open]:rounded-b-none data-[state=open]:border-b-0 hover:cursor-pointer", className)}
       {...props}
     />
   );
@@ -42,16 +35,16 @@ function DropdownMenuTrigger({
 
 function DropdownMenuContent({
   className,
+  container,
   ...props
-}: React.ComponentProps<typeof DropdownMenuRadix.Content>) {
+}: React.ComponentProps<typeof DropdownMenuRadix.Content> & { container?: HTMLDivElement | null }) {
   return (
-    <DropdownMenuRadix.Portal>
+    <DropdownMenuRadix.Portal container={container}>
       <DropdownMenuRadix.Content
         data-slot="dropdown-menu-content"
-        collisionPadding={8}
         className={cn(
-          className,
-          "z-50 origin-(--radix-dropdown-menu-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+          "bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md z-30",
+          className
         )}
         {...props}
       />
@@ -72,10 +65,7 @@ function DropdownMenuItem({
   return (
     <DropdownMenuRadix.Item
       data-slot="dropdown-menu-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn("relative flex w-full cursor-default select-none items-center rounded-sm py-1 px-2 text-sm outline-none focus:bg-accent-3 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-gray-4", className)}
       {...props}
     />
   );
@@ -89,15 +79,12 @@ function DropdownMenuCheckboxItem({
   return (
     <DropdownMenuRadix.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-gray-3 flex relative cursor-pointer")}
       {...props}
     >
       <span className="absolute left-0.5 top-0 bottom-0 items-center flex justify-center">
         <DropdownMenuRadix.ItemIndicator>
-          <CheckIcon className="text-accent-9" />
+          <CheckIcon className="text-gray-9" />
         </DropdownMenuRadix.ItemIndicator>
       </span>
       {children}
@@ -126,15 +113,12 @@ function DropdownMenuRadioItem({
   return (
     <DropdownMenuRadix.RadioItem
       data-slot="dropdown-menu-radio-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-gray-3 flex relative cursor-pointer")}
       {...props}
     >
       <span className="absolute left-0.5 top-0 bottom-0 items-center flex justify-center">
         <DropdownMenuRadix.ItemIndicator>
-          <DotFilledIcon className="fill-current text-accent-9" />
+          <DotFilledIcon className="fill-current text-gray-9" />
         </DropdownMenuRadix.ItemIndicator>
       </span>
       {children}
@@ -186,10 +170,7 @@ function DropdownMenuSubTrigger({
   return (
     <DropdownMenuRadix.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-gray-3 flex relative cursor-pointer")}
       {...props}
     >
       {children}
@@ -209,7 +190,7 @@ function DropdownMenuSubContent({
       data-slot="dropdown-menu-sub-content"
       className={cn(
         className,
-        "z-50 origin-(--radix-dropdown-menu-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+        "bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md"
       )}
       {...props}
     />

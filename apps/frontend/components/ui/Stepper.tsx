@@ -1217,6 +1217,7 @@ function StepperPrev(props: ButtonProps) {
     <PrevPrimitive
       type="button"
       data-slot="stepper-prev"
+      className="button-link"
       disabled={isDisabled}
       {...prevProps}
       onClick={onClick}
@@ -1260,6 +1261,7 @@ function StepperNext(props: ButtonProps) {
     <NextPrimitive
       type="button"
       data-slot="stepper-next"
+      className="button-fill"
       disabled={isDisabled}
       {...nextProps}
       onClick={onClick}

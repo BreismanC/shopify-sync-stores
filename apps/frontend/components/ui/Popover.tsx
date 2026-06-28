@@ -1,7 +1,5 @@
 "use client";
-/**
- * @description Displays rich content in a portal triggered by a button.
- */
+
 import * as React from "react";
 import { Popover as PopoverRadix } from "radix-ui";
 import { Cross2Icon } from "@radix-ui/react-icons";
@@ -33,22 +31,23 @@ function PopoverAnchor({
 
 function PopoverPortal({
   ...props
-}: React.ComponentProps<typeof PopoverRadix.Portal>) {
+}: React.ComponentProps<typeof PopoverRadix.Portal> & { container?: HTMLDivElement | null }) {
   return <PopoverRadix.Portal data-slot="popover-portal" {...props} />;
 }
 
 function PopoverContent({
   className,
+  container,
   ...props
-}: React.ComponentProps<typeof PopoverRadix.Content>) {
+}: React.ComponentProps<typeof PopoverRadix.Content> & { container?: HTMLDivElement | null }) {
   return (
-    <PopoverRadix.Portal>
+    <PopoverRadix.Portal container={container}>
       <PopoverRadix.Content
         data-slot="popover-content"
         collisionPadding={8}
         className={cn(
           className,
-          "z-50 origin-(--radix-popover-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+          "bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md z-80"
         )}
         {...props}
       />

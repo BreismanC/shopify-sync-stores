@@ -1,9 +1,9 @@
-import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio";
+import { AspectRatio as AspectRatioPradix } from "radix-ui";
 
 function AspectRatio({
   ...props
-}: React.ComponentProps<typeof AspectRatioPrimitive.Root>) {
-  return <AspectRatioPrimitive.Root data-slot="aspect-ratio" {...props} />;
+}: React.ComponentProps<typeof AspectRatioPradix.Root>) {
+  return <AspectRatioPradix.Root data-slot="aspect-ratio" {...props} />;
 }
 
 export { AspectRatio };

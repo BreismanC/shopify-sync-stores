@@ -1,7 +1,5 @@
 "use client";
-/**
- * @description For sighted users to preview content available behind a link.
- */
+
 import * as React from "react";
 import { HoverCard as HoverCardRadix } from "radix-ui";
 
@@ -35,10 +33,9 @@ function HoverCardContent({
     <HoverCardRadix.Portal data-slot="hover-card-portal">
       <HoverCardRadix.Content
         data-slot="hover-card-content"
-        collisionPadding={8}
         className={cn(
           className,
-          "z-50 origin-(--radix-hover-card-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm p-1 shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+          "bg-accent-1 border border-gray-a6 rounded-sm p-1 shadow-md z-[100]"
         )}
         {...props}
       >

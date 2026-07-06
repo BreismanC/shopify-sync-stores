@@ -19,6 +19,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') implements CanActivate {
     context: ExecutionContext,
     status?: any,
   ): TUser {
+    console.log('[JwtAuthGuard] handleRequest:', {
+      hasError: !!err,
+      hasUser: !!user,
+      info: info?.message || info?.toString() || info,
+    });
     if (err || !user) {
       throw err || new UnauthorizedException('No autorizado');
     }

@@ -89,12 +89,17 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body('email') email: string) {
     await this.forgotPasswordUseCase.execute(email);
-    return { message: 'Si el correo existe, se ha enviado un enlace de recuperación.' };
+    return {
+      message: 'Si el correo existe, se ha enviado un enlace de recuperación.',
+    };
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body('token') token: string, @Body('newPassword') newPassword: string) {
+  async resetPassword(
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+  ) {
     await this.resetPasswordUseCase.execute(token, newPassword);
     return { message: 'Contraseña actualizada correctamente.' };
   }

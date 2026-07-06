@@ -134,7 +134,7 @@ function ComboboxPositioner({
     <Combobox.Positioner
       data-slot="combobox-positioner"
       collisionPadding={8}
-      className={cn("outline-0", className)}
+      className={cn("outline-0 z-200", className)}
       {...props}
     />
   );
@@ -148,7 +148,7 @@ function ComboboxPopup({
     <Combobox.Popup
       data-slot="combobox-popup"
       className={cn(
-        "bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md w-[var(--anchor-width)] max-h-[23rem] max-w-[var(--available-width)]",
+        "bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md w-(--anchor-width) max-h-[23rem] max-w-(--available-width)",
         className
       )}
       {...props}
@@ -338,4 +338,3 @@ export {
   ComboboxGroupLabel,
   ComboboxCollection,
 };
-

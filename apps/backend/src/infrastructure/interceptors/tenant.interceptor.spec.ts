@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, jest } from 'jest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TenantInterceptor } from '../../../../infrastructure/interceptors/tenant.interceptor';
+import { TenantInterceptor } from './tenant.interceptor';
 
 describe('TenantInterceptor', () => {
   let interceptor: TenantInterceptor;
@@ -14,11 +14,10 @@ describe('TenantInterceptor', () => {
   });
 
   it('should attach tenantId to the request if user exists', async () => {
+    const request = { user: { tenantId: 'tenant-uuid' } };
     const context = {
       switchToHttp: () => ({
-        getRequest: () => ({
-          user: { tenantId: 'tenant-uuid' },
-        }),
+        getRequest: () => request,
       }),
       handle: jest
         .fn()
@@ -27,15 +26,14 @@ describe('TenantInterceptor', () => {
 
     await interceptor.intercept(context, { handle: () => ({}) } as any);
 
-    expect(context.switchToHttp().getRequest().tenantId).toBe('tenant-uuid');
+    expect(request.tenantId).toBe('tenant-uuid');
   });
 
   it('should not attach tenantId if user does not exist', async () => {
+    const request = { user: null };
     const context = {
       switchToHttp: () => ({
-        getRequest: () => ({
-          user: null,
-        }),
+        getRequest: () => request,
       }),
       handle: jest
         .fn()
@@ -44,6 +42,6 @@ describe('TenantInterceptor', () => {
 
     await interceptor.intercept(context, { handle: () => ({}) } as any);
 
-    expect(context.switchToHttp().getRequest().tenantId).toBeUndefined();
+    expect(request.tenantId).toBeUndefined();
   });
 });

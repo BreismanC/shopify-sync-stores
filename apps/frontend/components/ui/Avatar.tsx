@@ -1,7 +1,5 @@
 "use client";
-/**
- * @description An image element with a fallback for representing the user.
- */
+
 import * as React from "react";
 import { Avatar as AvatarRadix } from "radix-ui";
 import { cn } from "@/utils/class-names";
@@ -14,8 +12,8 @@ function Avatar({
     <AvatarRadix.Root
       data-slot="avatar"
       className={cn(
-        "inline-flex size-3 items-center justify-center overflow-hidden rounded-full",
-        className
+        className,
+        "inline-flex size-3 items-center justify-center overflow-hidden rounded-full"
       )}
       {...props}
     />
@@ -29,7 +27,7 @@ function AvatarImage({
   return (
     <AvatarRadix.Image
       data-slot="avatar-image"
-      className={cn("size-full rounded-[inherit] object-cover", className)}
+      className={cn(className, "size-full rounded-[inherit] object-cover")}
       {...props}
     />
   );
@@ -43,8 +41,8 @@ function AvatarFallback({
     <AvatarRadix.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center bg-gray-3",
-        className
+        className,
+        "flex size-full items-center justify-center bg-foreground text-background"
       )}
       {...props}
     />

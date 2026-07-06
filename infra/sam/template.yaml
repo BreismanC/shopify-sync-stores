@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 128
+    Environment:
+      Variables:
+        DATABASE_HOST: !Ref DatabaseHost
+        DATABASE_PORT: !Ref DatabasePort
+        DATABASE_NAME: !Ref DatabaseName
+        DATABASE_USER: !Ref DatabaseUser
+        DATABASE_PASSWORD: !Ref DatabasePassword
+        NODE_ENV: !Ref NodeEnv
+        AWS_SAM_LOCAL: false
+
+Parameters:
+  DatabaseHost:
+    Type: String
+    Default: localhost
+  DatabasePort:
+    Type: Number
+    Default: 5432
+  DatabaseName:
+    Type: String
+    Default: shopify_sync
+  DatabaseUser:
+    Type: String
+    Default: postgres
+  DatabasePassword:
+    Type: String
+    Default: password
+    NoEcho: true
+  NodeEnv:
+    Type: String
+    Default: development
+
+Resources:
+  CheckSubscriptionExpirations:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: shopify-sync-check-expirations
+      Handler: dist/subscription/check-expirations.handler
+      CodeUri: ../../apps/functions
+      Events:
+        ScheduleMidnight:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 0 * * ? *)
+            Name: check-expirations-nightly
+            Description: Run subscription expiration check daily at midnight UTC
+
+  CheckPendingPayments:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: shopify-sync-check-pending-payments
+      Handler: dist/subscription/check-pending-payments.handler
+      CodeUri: ../../apps/functions
+      Events:
+        Schedule8AM:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 8 * * ? *)
+            Name: check-pending-payments-morning
+            Description: Run pending payments check daily at 8am UTC
+
+  CheckUpcomingBillingDates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: shopify-sync-check-upcoming-billing
+      Handler: dist/subscription/check-upcoming-billing.handler
+      CodeUri: ../../apps/functions
+      Events:
+        Schedule9AM:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 9 * * ? *)
+            Name: check-upcoming-billing-morning
+            Description: Run upcoming billing check daily at 9am UTC
+
+  HandleOverduePayments:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: shopify-sync-handle-overdue
+      Handler: dist/subscription/handle-overdue.handler
+      CodeUri: ../../apps/functions
+      Events:
+        Schedule10AM:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 10 * * ? *)
+            Name: handle-overdue-payments-morning
+            Description: Handle overdue payments daily at 10am UTC
+
+Outputs:
+  CheckSubscriptionExpirationsArn:
+    Description: ARN of the CheckSubscriptionExpirations Lambda function
+    Value:
+      Fn::GetAtt: CheckSubscriptionExpirations.Arn
+
+  CheckPendingPaymentsArn:
+    Description: ARN of the CheckPendingPayments Lambda function
+    Value:
+      Fn::GetAtt: CheckPendingPayments.Arn
+
+  CheckUpcomingBillingDatesArn:
+    Description: ARN of the CheckUpcomingBillingDates Lambda function
+    Value:
+      Fn::GetAtt: CheckUpcomingBillingDates.Arn
+
+  HandleOverduePaymentsArn:
+    Description: ARN of the HandleOverduePayments Lambda function
+    Value:
+      Fn::GetAtt: HandleOverduePayments.Arn

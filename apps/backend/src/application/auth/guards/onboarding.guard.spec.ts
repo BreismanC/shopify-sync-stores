@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, jest } from 'jest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OnboardingGuard } from '../guards/onboarding.guard';
-import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
+import { OnboardingStatus } from '../../../domain/enums/onboarding-status.enum';
 import { ForbiddenException } from '@nestjs/common';
 
 describe('OnboardingGuard', () => {
@@ -27,12 +27,25 @@ describe('OnboardingGuard', () => {
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('should allow access to /onboarding routes even if not completed', () => {
+  it('should allow access to /api/onboarding routes even if not completed', () => {
     const context = {
       switchToHttp: () => ({
         getRequest: () => ({
           user: { onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG },
-          url: '/onboarding/step-1',
+          url: '/api/onboarding/step-1',
+        }),
+      }),
+    } as any;
+
+    expect(guard.canActivate(context)).toBe(true);
+  });
+
+  it('should allow access to /api/auth routes even if not completed', () => {
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          user: { onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG },
+          url: '/api/auth/login',
         }),
       }),
     } as any;
@@ -45,7 +58,7 @@ describe('OnboardingGuard', () => {
       switchToHttp: () => ({
         getRequest: () => ({
           user: { onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG },
-          url: '/api/dashboard',
+          url: '/api/products',
         }),
       }),
     } as any;

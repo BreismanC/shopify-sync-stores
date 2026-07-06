@@ -1,6 +1,38 @@
 @import "tailwindcss";
 
-@theme inline {
+@import "../styles/main.css";
+
+@import "../styles/accordion.css";
+
+@import "../styles/alert-dialog.css";
+
+@import "../styles/collapsible.css";
+
+@import "../styles/context-menu.css";
+
+@import "../styles/dropdown-menu.css";
+
+@import "../styles/hover-card.css";
+
+@import "../styles/menubar.css";
+
+@import "../styles/navigation-menu.css";
+
+@import "../styles/popover.css";
+
+@import "../styles/select.css";
+
+@import "../styles/tooltip.css";
+
+@import "../styles/dialog.css";
+
+@import "../styles/sheet.css";
+
+@import "../styles/sidebar.css";
+
+@import "../styles/command.css";
+
+@theme {
   --spacing: 4px;
   --font-sans: Inter, sans-serif;
   --info: #d9e2ff;
@@ -264,39 +296,4 @@
   main {
     background-color: var(--gray-1);
   }
-}
-
-@layer components {
-
-@import "../styles/main.css" ;
-
-@import "../styles/accordion.css" ;
-
-@import "../styles/alert-dialog.css" ;
-
-@import "../styles/collapsible.css" ;
-
-@import "../styles/context-menu.css" ;
-
-@import "../styles/dropdown-menu.css" ;
-
-@import "../styles/hover-card.css" ;
-
-@import "../styles/menubar.css" ;
-
-@import "../styles/navigation-menu.css" ;
-
-@import "../styles/popover.css" ;
-
-@import "../styles/select.css" ;
-
-@import "../styles/tooltip.css" ;
-
-@import "../styles/dialog.css" ;
-
-@import "../styles/sheet.css" ;
-
-@import "../styles/sidebar.css" ;
-
-@import "../styles/command.css" ;
 }

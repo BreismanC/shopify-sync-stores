@@ -1,0 +1,25 @@
+{
+  "name": "@shopify-sync/database",
+  "version": "0.0.1",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./entities": "./dist/entities/index.js",
+    "./enums": "./dist/enums/index.js",
+    "./repositories": "./dist/repositories/index.js"
+  },
+  "dependencies": {
+    "typeorm": "^0.3.20",
+    "pg": "^8.11.3",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  }
+}

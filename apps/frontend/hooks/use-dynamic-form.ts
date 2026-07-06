@@ -10,7 +10,7 @@ interface useFormDynamicProps {
 }
 
 // Object to resolve the initial value based on the field type.
-const initialValueResolver = {
+const initialValueResolver: Record<FieldType, string | boolean | never[]> = {
   text: "",
   textarea: "",
   select: "",
@@ -37,7 +37,7 @@ const useInputValueFields = (initialValues: useFormDynamicProps = {}) => {
   // State to hold the current values of the form fields.
   const [value, setValue] = useState(resolvedInitialValues);
   // State to hold any errors related to the form fields.
-  const [error, setError] = useState<string>(null);
+  const [error, setError] = useState<string | null>(null);
   // State to track if a field has been touched (focused and blurred).
   const [touch, setTouch] = useState<Record<string, boolean>>({});
 
@@ -112,7 +112,7 @@ export const useFormDynamic = (initialValues: useFormDynamicProps) => {
    * @returns An object containing the field's props.
    */
   const field = (name: string): FieldProps => {
-    const fieldType = fields.value[name];
+    const fieldType = fields.value[name] as FieldType;
     const defaultValue = initialValueResolver[fieldType];
 
     // Handles changes in the field's value.
@@ -138,10 +138,15 @@ export const useFormDynamic = (initialValues: useFormDynamicProps) => {
     };
 
     // Sets the field's value in the DOM and updates the state.
-    const setFormFieldValue = (formRef, value) => {
-      const input = formRef?.current?.querySelector(`[name="${name}"]`);
+    const setFormFieldValue = (
+      formRef: React.RefObject<HTMLFormElement>,
+      value: string | boolean | any[],
+    ) => {
+      const input = formRef?.current?.querySelector(
+        `[name="${name}"]`,
+      ) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
       if (input) {
-        input.value = value;
+        input.value = String(value);
       }
       updateField(name, {
         value: value,
@@ -188,7 +193,10 @@ export const useFormDynamic = (initialValues: useFormDynamicProps) => {
    * @param formRef - A ref to the form element.
    * @param initialValues - The initial values for the form fields.
    */
-  const resetForm = (formRef, initialValues) => {
+  const resetForm = (
+    formRef: React.RefObject<HTMLFormElement>,
+    initialValues: Record<string, FieldType>,
+  ) => {
     const fields = getFields();
 
     for (const field in fields) {

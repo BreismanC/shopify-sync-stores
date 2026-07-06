@@ -15,20 +15,17 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Tenant)
-  tenant: Tenant;
+  @ManyToOne(() => Tenant, { nullable: true })
+  tenant: Tenant | null;
 
-  @Column()
-  tenantId: string;
+  @Column({ nullable: true })
+  tenantId: string | null;
 
   @Column({ unique: true })
   email: string;
 
   @Column()
   name: string;
-
-  @Column({ nullable: true })
-  companyName: string;
 
   @Column({ nullable: true })
   password: string;
@@ -43,7 +40,7 @@ export class User {
   @Column({
     type: 'enum',
     enum: OnboardingStatus,
-    default: OnboardingStatus.PENDING_STORE_CONFIG,
+    default: OnboardingStatus.PENDING_TENANT_CONFIG,
   })
   onboardingStatus: OnboardingStatus;
 

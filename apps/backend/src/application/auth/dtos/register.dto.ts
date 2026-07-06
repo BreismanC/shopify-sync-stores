@@ -1,5 +1,5 @@
 import { IsEmail } from 'class-validator';
-import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -11,8 +11,11 @@ export class RegisterDto {
   email!: string;
 
   @IsString()
-  @IsOptional()
-  companyName?: string;
+  @IsNotEmpty()
+  @MinLength(3, {
+    message: 'El nombre de la empresa debe tener al menos 3 caracteres',
+  })
+  companyName!: string;
 
   @IsString()
   @IsNotEmpty()

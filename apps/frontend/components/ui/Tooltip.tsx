@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Tooltip as TooltipPrimitive } from "radix-ui"
+import * as React from "react";
+import { Tooltip as TooltipPrimitive } from "radix-ui";
 
-import { cn } from "@/utils/class-names"
+import { cn } from "@/utils/class-names";
 
 function TooltipProvider({
   delayDuration = 0,
@@ -15,7 +15,7 @@ function TooltipProvider({
       delayDuration={delayDuration}
       {...props}
     />
-  )
+  );
 }
 
 function Tooltip({
@@ -25,37 +25,33 @@ function Tooltip({
     <TooltipProvider>
       <TooltipPrimitive.Root data-slot="tooltip" {...props} />
     </TooltipProvider>
-  )
+  );
 }
 
 function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
 function TooltipContent({
   className,
-  sideOffset = 0,
   children,
+  container,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & { container?: HTMLDivElement | null }) {
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
-        sideOffset={sideOffset}
-        className={cn(
-          "bg-gray-12 text-gray-1 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-1 py-0.5 text-sm text-balance data-[state=open]:animate-tooltip-show data-[state=closed]:animate-tooltip-hide",
-          className
-        )}
+        className={cn(className, "bg-gray-2 text-foreground border border-gray-3 rounded-sm p-1 shadow-md z-20")}
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="fill-gray-12" />
+        <TooltipPrimitive.Arrow className="fill-gray-3" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
-  )
+  );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

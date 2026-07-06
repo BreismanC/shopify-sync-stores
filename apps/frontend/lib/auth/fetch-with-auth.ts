@@ -4,8 +4,7 @@ import { useSession } from 'next-auth/react';
 import type { Session } from 'next-auth';
 import useSWR, { SWRConfiguration, SWRResponse } from 'swr';
 import { useRouter } from 'next/navigation';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+import { BACKEND_URL } from '@/lib/env';
 
 export interface AuthFetchError extends Error {
   status?: number;

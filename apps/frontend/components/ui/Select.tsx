@@ -1,30 +1,32 @@
-"use client";
-/**
- * @description Displays a list of options for the user to pick from—triggered by a button.
- */
-import * as React from "react";
-import { Select as SelectRadix } from "radix-ui";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-} from "@radix-ui/react-icons";
+"use client"
+
+import * as React from "react"
+import { Select as SelectPrimitive } from "radix-ui";
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "@radix-ui/react-icons";
 
 import { cn } from "@/utils/class-names";
 
-function Select({ ...props }: React.ComponentProps<typeof SelectRadix.Root>) {
-  return <SelectRadix.Root data-slot="select" {...props} />;
+function Select({
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
 
-function SelectTrigger({
+function SelectGroup({
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Group>) {
+  return <SelectPrimitive.Group data-slot="select-group" {...props} />;
+}
+
+function SelectValue({
   className,
   ...props
-}: React.ComponentProps<typeof SelectRadix.Trigger>) {
+}: React.ComponentProps<typeof SelectPrimitive.Value>) {
   return (
-    <SelectRadix.Trigger
-      data-slot="select-trigger"
+    <SelectPrimitive.Value
+      data-slot="select-value"
       className={cn(
-        "flex h-4 w-full items-center justify-between rounded-sm border border-gray-a6 bg-gray-2 px-2 text-gray-12 cursor-pointer focus:outline-2 focus:outline-accent-9 focus:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
+        "min-w-0 flex-1 truncate text-left [&>span]:text-gray-9 [&>span]:pl-2 [&>span]:lg:pl-0",
         className
       )}
       {...props}
@@ -32,67 +34,65 @@ function SelectTrigger({
   );
 }
 
-function SelectValue({
+function SelectTrigger({
   className,
+  children,
   ...props
-}: React.ComponentProps<typeof SelectRadix.Value>) {
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {}) {
   return (
-    <SelectRadix.Value
-      data-slot="select-value"
-      className={cn(className, "text-gray-12")}
-      {...props}
-    />
-  );
-}
-
-function SelectIcon({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectRadix.Icon>) {
-  return (
-    <SelectRadix.Icon
-      data-slot="select-icon"
-      className={cn(className, "text-gray-11")}
+    <SelectPrimitive.Trigger
+      data-slot="select-trigger"
+      className={cn(
+        "flex items-center justify-between gap-3 overflow-hidden rounded-md text-sm text-gray-9 font-medium px-2 py-1 border border-gray-a6 data-[state=open]:rounded-md data-[state=open]:rounded-b-none data-[state=open]:border-b-0 w-full [&>span]:text-gray-9",
+        className
+      )}
       {...props}
     >
-      <ChevronDownIcon className="icon" />
-    </SelectRadix.Icon>
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDownIcon className="size-1 shrink-0 text-foreground" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
   );
-}
-
-function SelectPortal({
-  ...props
-}: React.ComponentProps<typeof SelectRadix.Portal>) {
-  return <SelectRadix.Portal data-slot="select-portal" {...props} />;
 }
 
 function SelectContent({
   className,
+  children,
+  position = "popper",
+  align = "start",
   ...props
-}: React.ComponentProps<typeof SelectRadix.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
-    <SelectRadix.Portal>
-      <SelectRadix.Content
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
         data-slot="select-content"
-        collisionPadding={8}
+        position={"popper"}
         className={cn(
-          className,
-          "relative z-50 max-h-96 min-w-10 origin-(--radix-select-content-transform-origin) overflow-hidden rounded-sm border border-gray-a6 bg-gray-1 shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+          "relative z-80 max-h-50 w-(--radix-select-trigger-width) max-w-(--radix-select-trigger-width) py-0.5 px-0 overflow-hidden rounded-md rounded-t-none border border-gray-a6 bg-gray-1 text-foreground shadow-md",
+          className
         )}
+        align={align}
         {...props}
-      />
-    </SelectRadix.Portal>
+      >
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport className="w-full overflow-hidden p-0">
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
   );
 }
 
-function SelectViewport({
+function SelectLabel({
   className,
   ...props
-}: React.ComponentProps<typeof SelectRadix.Viewport>) {
+}: React.ComponentProps<typeof SelectPrimitive.Label>) {
   return (
-    <SelectRadix.Viewport
-      data-slot="select-viewport"
-      className={cn(className, "p-0")}
+    <SelectPrimitive.Label
+      data-slot="select-label"
+      className={cn("px-1 py-0.5 text-sm font-bold text-foreground", className)}
       {...props}
     />
   );
@@ -102,79 +102,36 @@ function SelectItem({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof SelectRadix.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
-    <SelectRadix.Item
+    <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        className,
-        "relative flex w-full cursor-pointer select-none items-center p-0.5 px-2 text-gray-12 outline-none hover:bg-accent-3 focus:bg-accent-3 focus:text-accent-12 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+        "relative flex w-full min-w-0 cursor-default select-none items-center overflow-hidden rounded-sm py-0.5 px-2 pl-3 text-sm text-gray-9 outline-none focus:bg-accent-3 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-gray-4",
+        className
       )}
       {...props}
     >
-      {children}
-    </SelectRadix.Item>
-  );
-}
-
-function SelectItemText({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectRadix.ItemText>) {
-  return (
-    <SelectRadix.ItemText
-      data-slot="select-item-text"
-      className={cn(className)}
-      {...props}
-    />
-  );
-}
-
-function SelectItemIndicator({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectRadix.ItemIndicator>) {
-  return (
-    <SelectRadix.ItemIndicator
-      data-slot="select-item-indicator"
-      className={cn(
-        className,
-        "absolute left-0.5 top-0 bottom-0 flex items-center justify-center"
-      )}
-      {...props}
-    >
-      <CheckIcon className="text-accent-9" />
-    </SelectRadix.ItemIndicator>
-  );
-}
-
-function SelectGroup({
-  ...props
-}: React.ComponentProps<typeof SelectRadix.Group>) {
-  return <SelectRadix.Group data-slot="select-group" {...props} />;
-}
-
-function SelectLabel({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectRadix.Label>) {
-  return (
-    <SelectRadix.Label
-      data-slot="select-label"
-      className={cn(className, "p-0.5 px-2 text-gray-12")}
-      {...props}
-    />
+      <span className="absolute left-1 flex h-1 w-0.5 shrink-0 items-center justify-center">
+        <SelectPrimitive.ItemIndicator>
+          <CheckIcon className="icon text-accent-9" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+      <SelectPrimitive.ItemText className="block min-w-0 w-full truncate">
+        {children}
+      </SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
   );
 }
 
 function SelectSeparator({
   className,
   ...props
-}: React.ComponentProps<typeof SelectRadix.Separator>) {
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
   return (
-    <SelectRadix.Separator
+    <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn(className, "m-0.6 h-px bg-gray-a6")}
+      className={cn("-mx-1 my-1 h-px bg-gray-a6", className)}
       {...props}
     />
   );
@@ -183,67 +140,48 @@ function SelectSeparator({
 function SelectScrollUpButton({
   className,
   ...props
-}: React.ComponentProps<typeof SelectRadix.ScrollUpButton>) {
+}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
   return (
-    <SelectRadix.ScrollUpButton
+    <SelectPrimitive.ScrollUpButton
       data-slot="select-scroll-up-button"
       className={cn(
-        className,
-        "flex cursor-default items-center justify-center p-0.5"
+        "flex cursor-default items-center justify-center py-1",
+        className
       )}
       {...props}
     >
-      <ChevronUpIcon className="icon text-gray-11" />
-    </SelectRadix.ScrollUpButton>
+      <ChevronUpIcon className="icon" />
+    </SelectPrimitive.ScrollUpButton>
   );
 }
 
 function SelectScrollDownButton({
   className,
   ...props
-}: React.ComponentProps<typeof SelectRadix.ScrollDownButton>) {
+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
   return (
-    <SelectRadix.ScrollDownButton
+    <SelectPrimitive.ScrollDownButton
       data-slot="select-scroll-down-button"
       className={cn(
-        className,
-        "flex cursor-default items-center justify-center p-0.5"
+        "flex cursor-default items-center justify-center py-1",
+        className
       )}
       {...props}
     >
-      <ChevronDownIcon className="icon text-gray-11" />
-    </SelectRadix.ScrollDownButton>
-  );
-}
-
-function SelectArrow({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectRadix.Arrow>) {
-  return (
-    <SelectRadix.Arrow
-      data-slot="select-arrow"
-      className={cn(className, "fill-gray-1")}
-      {...props}
-    />
+      <ChevronDownIcon className="icon" />
+    </SelectPrimitive.ScrollDownButton>
   );
 }
 
 export {
   Select,
-  SelectPortal,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
-  SelectIcon,
-  SelectContent,
-  SelectViewport,
-  SelectItem,
-  SelectItemText,
-  SelectItemIndicator,
-  SelectGroup,
-  SelectLabel,
-  SelectSeparator,
-  SelectScrollUpButton,
-  SelectScrollDownButton,
-  SelectArrow,
-};
+}

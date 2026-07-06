@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { IUSER_REPOSITORY, IUserRepository } from './repositories/IUserRepository';
+import {
+  IUSER_REPOSITORY,
+  IUserRepository,
+} from './repositories/IUserRepository';
 import { TenantService } from '../tenant/tenant.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { JwtService } from '@nestjs/jwt';
@@ -60,18 +63,18 @@ describe('AuthService', () => {
       const registerData = {
         name: 'Test User',
         email: 'test@example.com',
+        companyName: 'Acme Inc',
         password: '***',
-        companyName: 'Test Company',
       };
 
-      const mockTenant = { id: 'tenant-uuid', name: 'Test Company' };
+      const mockTenant = { id: 'tenant-uuid', name: 'Acme Inc' };
       const mockUser = {
         id: 'user-uuid',
         email: 'test@example.com',
         name: 'Test User',
         tenantId: 'tenant-uuid',
         role: UserRole.MEMBER,
-        onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
       };
 
       userRepository.findByEmail.mockResolvedValue(null);
@@ -96,7 +99,7 @@ describe('AuthService', () => {
       expect(userRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantId: mockTenant.id,
-          onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+          onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
         }),
       );
       expect(result).toEqual(mockUser);
@@ -106,6 +109,7 @@ describe('AuthService', () => {
       const registerData = {
         name: 'Test User',
         email: 'existing@example.com',
+        companyName: 'Existing Inc',
         password: '***',
       };
 
@@ -132,9 +136,15 @@ describe('AuthService', () => {
       expect(result).toEqual(mockUser);
     });
 
-    it('should create a new user with tenantId: null if user does not exist', async () => {
+    it('should create a new user with tenantId: undefined and PENDING_TENANT_CONFIG if user does not exist', async () => {
       const userData = { email: 'new@example.com', name: 'New User' };
-      const mockUser = { id: 'user-uuid', ...userData, tenantId: null, role: UserRole.MEMBER };
+      const mockUser = {
+        id: 'user-uuid',
+        ...userData,
+        tenantId: null,
+        role: UserRole.MEMBER,
+        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+      };
 
       userRepository.findByEmail.mockResolvedValue(null);
       userRepository.create.mockReturnValue(mockUser as any);
@@ -145,11 +155,43 @@ describe('AuthService', () => {
       expect(tenantService.create).not.toHaveBeenCalled();
       expect(userRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          tenantId: null,
+          tenantId: undefined,
           role: UserRole.MEMBER,
+          onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
         }),
       );
       expect(result).toEqual(mockUser);
+    });
+  });
+
+  describe('login', () => {
+    it('should include onboardingStatus in the JWT payload and the user response', async () => {
+      const mockUser: any = {
+        id: 'user-uuid',
+        email: 'test@example.com',
+        name: 'Test User',
+        tenantId: 'tenant-uuid',
+        role: UserRole.MEMBER,
+        onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+      };
+
+      jwtService.sign.mockReturnValue('signed-jwt');
+
+      const result = await authService.login(mockUser);
+
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: mockUser.email,
+          sub: mockUser.id,
+          tenantId: mockUser.tenantId,
+          onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+        }),
+      );
+      expect(result.user).toEqual(
+        expect.objectContaining({
+          onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+        }),
+      );
     });
   });
 });

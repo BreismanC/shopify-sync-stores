@@ -12,6 +12,12 @@ import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import { LoginCredentials } from "@/types/auth";
 import { loginSchema } from "@/schemas/auth";
 import { validateFormData } from "@/utils/web-validation";
+import {
+  OnboardingStatus,
+  isValidStatus,
+  statusToStep,
+} from "@/lib/auth/onboarding-status";
+import { BACKEND_URL } from "@/lib/env";
 import Link from "next/link";
 
 export function LoginForm() {
@@ -45,7 +51,7 @@ export function LoginForm() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        `${BACKEND_URL}/api/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -85,35 +91,45 @@ export function LoginForm() {
 
       toast.success("Has iniciado sesión correctamente");
 
-      // Login: verificar si tiene tenants
-      // Si no tiene tenant → onboarding
-      // Si tiene 1 tenant → dashboard
-      // Si tiene múltiples → tenant-selector
-      try {
-        const tenantsRes = await fetch('/api/auth/tenant', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
+      // Redirección por onboardingStatus (no por tenantId).
+      // La única señal de "puede ir al dashboard" es onboardingStatus === COMPLETED.
+      const onboardingStatus: OnboardingStatus = isValidStatus(
+        result.user?.onboardingStatus,
+      )
+        ? (result.user.onboardingStatus as OnboardingStatus)
+        : OnboardingStatus.PENDING_TENANT_CONFIG;
 
-        if (tenantsRes.ok) {
-          const tenantsData = await tenantsRes.json();
-          const tenants = tenantsData.tenants || [];
+      let target: string;
+      if (onboardingStatus === OnboardingStatus.COMPLETED) {
+        // Usuario completo: chequear cantidad de tenants para decidir
+        // si va a /dashboard o a /tenant-selector.
+        try {
+          const tenantsRes = await fetch('/api/auth/tenant', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
 
-          if (tenants.length === 0) {
-            window.location.href = '/onboarding';
-          } else if (tenants.length === 1) {
-            window.location.href = '/dashboard';
+          if (tenantsRes.ok) {
+            const tenantsData = await tenantsRes.json();
+            const tenants = tenantsData.tenants || [];
+            if (tenants.length >= 2) {
+              target = '/tenant-selector';
+            } else {
+              target = '/dashboard';
+            }
           } else {
-            window.location.href = '/tenant-selector';
+            target = '/dashboard';
           }
-        } else {
-          // Si falla, ir a dashboard por defecto
-          window.location.href = '/dashboard';
+        } catch {
+          target = '/dashboard';
         }
-      } catch {
-        window.location.href = '/dashboard';
+      } else {
+        // Onboarding pendiente: ir al step derivado del status
+        const step = statusToStep(onboardingStatus);
+        target = `/onboarding?step=${step}`;
       }
 
+      window.location.href = target;
       setFetchStatus('success');
     } catch (err: any) {
       toast.error(err.message || "Error al iniciar sesión");
@@ -228,7 +244,7 @@ export function LoginForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base"
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`;
+                  window.location.href = `${BACKEND_URL}/api/auth/google`;
                 }}
               >
                 Google
@@ -238,7 +254,7 @@ export function LoginForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base"
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/facebook`;
+                  window.location.href = `${BACKEND_URL}/api/auth/facebook`;
                 }}
               >
                 Facebook

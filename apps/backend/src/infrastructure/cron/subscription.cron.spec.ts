@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, jest } from 'jest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SubscriptionCron } from '../../../../infrastructure/cron/subscription.cron';
+import { SubscriptionCron } from './subscription.cron';
 import { ISubscriptionRepository } from '../../application/subscription/repositories/ISubscriptionRepository';
 import { SubscriptionStatus } from '../../domain/enums/subscription-status.enum';
 

@@ -3,6 +3,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User } from '../../domain/entities/user.entity';
 import { Response } from 'express';
+import { ForgotPasswordUseCase } from '../use-cases/auth/forgot-password.use-case';
+import { ResetPasswordUseCase } from '../use-cases/auth/reset-password.use-case';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -27,6 +29,14 @@ describe('AuthController', () => {
     validateOrCreateSocialUser: jest.fn(),
   };
 
+  const mockForgotPasswordUseCase = {
+    execute: jest.fn(),
+  };
+
+  const mockResetPasswordUseCase = {
+    execute: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -34,6 +44,14 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: ForgotPasswordUseCase,
+          useValue: mockForgotPasswordUseCase,
+        },
+        {
+          provide: ResetPasswordUseCase,
+          useValue: mockResetPasswordUseCase,
         },
       ],
     }).compile();
@@ -81,15 +99,11 @@ describe('AuthController', () => {
         name: 'New User',
         email: 'new@example.com',
         password: 'password123',
-        companyName: 'New Co',
       };
 
       await controller.register(registerDto);
 
-      expect(authService.register).toHaveBeenCalledWith({
-        ...registerDto,
-        tenantId: expect.any(String),
-      });
+      expect(authService.register).toHaveBeenCalledWith(registerDto);
       expect(authService.login).toHaveBeenCalledWith(mockUser);
     });
   });

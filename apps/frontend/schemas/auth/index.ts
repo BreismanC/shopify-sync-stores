@@ -3,10 +3,10 @@ export const registerSchema = {
   properties: {
     name: { type: 'string', minLength: 2 },
     email: { type: 'string', format: 'email' },
-    companyName: { type: 'string' },
+    companyName: { type: 'string', minLength: 3 },
     password: { type: 'string', minLength: 6 },
   },
-  required: ['name', 'email', 'password'],
+  required: ['name', 'email', 'companyName', 'password'],
   additionalProperties: false,
 };
 

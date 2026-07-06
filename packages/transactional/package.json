@@ -19,6 +19,11 @@
       "import": "./dist/emails/*.js",
       "require": "./dist/emails/*.js",
       "types": "./dist/emails/*.d.ts"
+    },
+    "./emails/subscription": {
+      "import": "./dist/emails/subscription/index.js",
+      "require": "./dist/emails/subscription/index.js",
+      "types": "./dist/emails/subscription/index.d.ts"
     }
   },
   "scripts": {

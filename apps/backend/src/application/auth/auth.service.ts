@@ -1,6 +1,9 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { IUSER_REPOSITORY, type IUserRepository } from './repositories/IUserRepository';
+import {
+  IUSER_REPOSITORY,
+  type IUserRepository,
+} from './repositories/IUserRepository';
 import * as bcrypt from 'bcrypt';
 import { User } from '../../domain/entities/user.entity';
 import { UserRole } from '../../domain/enums/user-role.enum';
@@ -16,7 +19,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly tenantService: TenantService,
     private readonly subscriptionService: SubscriptionService,
-  ) {}
+  ) {
+    console.log('[AuthService] AUTH_SECRET exists:', !!process.env.AUTH_SECRET);
+    console.log(
+      '[AuthService] JWT_SIGN_SECRET exists:',
+      !!process.env.JWT_SIGN_SECRET,
+    );
+  }
 
   async validateUser(email: string, pass: string): Promise<User | null> {
     const user = await this.userRepository.findByEmail(email);
@@ -34,6 +43,7 @@ export class AuthService {
       name: string;
       tenantId: string | null;
       role: string;
+      onboardingStatus: OnboardingStatus;
     };
   }> {
     console.log('Logging in user:', user);
@@ -41,6 +51,7 @@ export class AuthService {
       email: user.email,
       sub: user.id,
       tenantId: user.tenantId,
+      onboardingStatus: user.onboardingStatus,
     };
     return Promise.resolve({
       access_token: this.jwtService.sign(payload),
@@ -50,6 +61,7 @@ export class AuthService {
         name: user.name,
         tenantId: user.tenantId,
         role: user.role,
+        onboardingStatus: user.onboardingStatus,
       },
     });
   }
@@ -58,7 +70,7 @@ export class AuthService {
     name: string;
     email: string;
     password: string;
-    companyName?: string;
+    companyName: string;
   }): Promise<User> {
     const existingUser = await this.userRepository.findByEmail(data.email);
     if (existingUser) {
@@ -67,10 +79,8 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // 1. Crear el Tenant
-    const tenant = await this.tenantService.create(
-      data.companyName || data.name,
-    );
+    // 1. Crear el Tenant con el nombre de empresa enviado en el formulario.
+    const tenant = await this.tenantService.create(data.companyName.trim());
 
     // 2. Crear la suscripción de prueba
     await this.subscriptionService.createTrial(tenant.id);
@@ -80,10 +90,9 @@ export class AuthService {
       name: data.name,
       email: data.email,
       password: hashedPassword,
-      companyName: data.companyName,
       tenantId: tenant.id,
       role: UserRole.MEMBER,
-      onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+      onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
     });
 
     return this.userRepository.save(user);
@@ -103,6 +112,7 @@ export class AuthService {
       name: data.name,
       tenantId: undefined,
       role: UserRole.MEMBER,
+      onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
     });
 
     return this.userRepository.save(user);

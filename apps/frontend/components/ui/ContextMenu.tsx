@@ -1,7 +1,5 @@
 "use client";
-/**
- * @description Displays a menu to the user triggered by right-click or long-press.
- */
+
 import * as React from "react";
 import { ContextMenu as ContextMenuRadix } from "radix-ui";
 import {
@@ -70,10 +68,7 @@ function ContextMenuSubTrigger({
   return (
     <ContextMenuRadix.SubTrigger
       data-slot="context-menu-sub-trigger"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer")}
       {...props}
     >
       {children}
@@ -93,7 +88,7 @@ function ContextMenuSubContent({
       data-slot="context-menu-sub-content"
       className={cn(
         className,
-        "z-50 origin-(--radix-context-menu-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+        "bg-accent-1 border border-gray-a6 rounded-sm relative shadow-md"
       )}
       {...props}
     />
@@ -108,10 +103,9 @@ function ContextMenuContent({
     <ContextMenuRadix.Portal>
       <ContextMenuRadix.Content
         data-slot="context-menu-content"
-        collisionPadding={8}
         className={cn(
           className,
-          "z-50 origin-(--radix-context-menu-content-transform-origin) bg-gray-1 border border-gray-a6 rounded-sm relative shadow-md data-[state=open]:animate-popover-show data-[state=closed]:animate-popover-hide"
+          "bg-accent-1 border border-gray-a6 rounded-sm relative shadow-md"
         )}
         {...props}
       />
@@ -126,10 +120,7 @@ function ContextMenuItem({
   return (
     <ContextMenuRadix.Item
       data-slot="context-menu-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer justify-between"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer")}
       {...props}
     />
   );
@@ -144,16 +135,13 @@ function ContextMenuCheckboxItem({
   return (
     <ContextMenuRadix.CheckboxItem
       data-slot="context-menu-checkbox-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer")}
       checked={checked}
       {...props}
     >
       <span className="absolute left-0.5 top-0 bottom-0 items-center flex justify-center">
         <ContextMenuRadix.ItemIndicator>
-          <CheckIcon className="text-accent-8" />
+          <CheckIcon className="text-accent-9"/>
         </ContextMenuRadix.ItemIndicator>
       </span>
       {children}
@@ -169,15 +157,12 @@ function ContextMenuRadioItem({
   return (
     <ContextMenuRadix.RadioItem
       data-slot="context-menu-radio-item"
-      className={cn(
-        className,
-        "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer"
-      )}
+      className={cn(className, "p-0.5 px-2 hover:bg-accent-3 flex relative cursor-pointer")}
       {...props}
     >
       <span className="absolute left-0.5 top-0 bottom-0 items-center flex justify-center">
         <ContextMenuRadix.ItemIndicator>
-          <DotFilledIcon className="text-accent-8" />
+          <DotFilledIcon  className="text-accent-9"/>
         </ContextMenuRadix.ItemIndicator>
       </span>
       {children}

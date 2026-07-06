@@ -37,7 +37,7 @@ const signaturePadVariants = cva("touch-none cursor-pencil", {
 
 export interface SignaturePadProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange">,
-    VariantProps<typeof signaturePadVariants> {
+  VariantProps<typeof signaturePadVariants> {
   /** @public (optional) - Tailwind color utility class for the pen color (e.g. "text-black", "text-primary-500") */
   penColor?: string;
   /** @public (optional) - Line width in pixels */
@@ -295,8 +295,8 @@ const SignaturePad = React.forwardRef<SignaturePadRef, SignaturePadProps>(
         {showButtons && (
           <div className="absolute bottom-1 right-1 flex gap-0.5">
             <Button
-              variant="pill"
-              size="sm"
+              mode="link"
+              size="default"
               onClick={handleClear}
               className="rounded-full"
               type="button"
@@ -304,8 +304,8 @@ const SignaturePad = React.forwardRef<SignaturePadRef, SignaturePadProps>(
               {clearButtonIcon || <SymbolIcon />}
             </Button>
             <Button
-              variant="pill"
-              size="sm"
+              mode="link"
+              size="default"
               onClick={handleSave}
               className="rounded-full"
               type="button"

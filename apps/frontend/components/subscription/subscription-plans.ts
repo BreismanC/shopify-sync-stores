@@ -1,21 +1,38 @@
 import { SubscriptionPlan, BillingPeriod } from '@shopify-sync/database/enums';
 
+/**
+ * Moneda por defecto del catálogo. Debe coincidir con `MERCADOPAGO_CURRENCY`
+ * y con `PLAN_CURRENCY` del backend. MercadoPago rechaza decimales para COP.
+ */
+export const PLAN_CURRENCY = 'COP' as const;
+
+/**
+ * Precios en pesos colombianos (COP). Reflejan el backend
+ * `apps/backend/src/domain/enums/subscription-plan.enum.ts`.
+ *
+ * - Mensual: valor vigente del plan por mes.
+ * - Anual:   12 meses con 15% de descuento (se paga el 85%).
+ *
+ * Mantener estos números sincronizados con el backend es importante
+ * porque el frontend muestra el monto antes de iniciar el checkout
+ * pro. El monto final que se envía a MercadoPago es el del backend.
+ */
 export const PLAN_PRICING: Record<SubscriptionPlan, Record<BillingPeriod, number>> = {
   [SubscriptionPlan.TRIAL]: {
     [BillingPeriod.MONTHLY]: 0,
     [BillingPeriod.YEARLY]: 0,
   },
   [SubscriptionPlan.BASIC]: {
-    [BillingPeriod.MONTHLY]: 29,
-    [BillingPeriod.YEARLY]: 290,
+    [BillingPeriod.MONTHLY]: 29_000,
+    [BillingPeriod.YEARLY]: 295_800,
   },
   [SubscriptionPlan.PRO]: {
-    [BillingPeriod.MONTHLY]: 79,
-    [BillingPeriod.YEARLY]: 790,
+    [BillingPeriod.MONTHLY]: 79_000,
+    [BillingPeriod.YEARLY]: 805_800,
   },
   [SubscriptionPlan.ENTERPRISE]: {
-    [BillingPeriod.MONTHLY]: 199,
-    [BillingPeriod.YEARLY]: 1990,
+    [BillingPeriod.MONTHLY]: 199_000,
+    [BillingPeriod.YEARLY]: 2_029_800,
   },
 };
 

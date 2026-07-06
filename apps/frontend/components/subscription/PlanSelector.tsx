@@ -27,7 +27,7 @@ const PLAN_ORDER: SubscriptionPlan[] = [
 
 const BILLING_LABELS: Record<BillingPeriod, string> = {
   [BillingPeriod.MONTHLY]: 'Mensual',
-  [BillingPeriod.YEARLY]: 'Anual (-17%)',
+  [BillingPeriod.YEARLY]: 'Anual (2 meses off)',
 };
 
 export function PlanSelector({ onSelect }: Props) {
@@ -61,7 +61,7 @@ export function PlanSelector({ onSelect }: Props) {
   const formatPrice = (plan: SubscriptionPlan) => {
     const price = PLAN_PRICING[plan][billingPeriod];
     if (price === 0) return 'Gratis';
-    return `$${price}`;
+    return `$${new Intl.NumberFormat('es-CO').format(price)}`;
   };
 
   const formatPeriod = (plan: SubscriptionPlan) => {
@@ -85,7 +85,7 @@ export function PlanSelector({ onSelect }: Props) {
           size="md"
           onClick={() => setBillingPeriod(BillingPeriod.YEARLY)}
         >
-          Anual (ahorra 17%)
+          Anual (2 meses off)
         </Button>
       </div>
 

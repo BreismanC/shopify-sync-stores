@@ -11,9 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
 import { apiFetch } from "@/lib/auth";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+import { BACKEND_URL } from "@/lib/env";
 
 interface TeamMember {
   id: string;

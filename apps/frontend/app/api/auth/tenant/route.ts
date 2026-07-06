@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { BACKEND_URL } from '@/lib/env';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -22,10 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    console.log('[API /auth/tenant] session.accessToken:', session.accessToken ? 'present (' + session.accessToken.substring(0, 20) + '...)' : 'MISSING');
-
-    const response = await fetch(`${backendUrl}/api/auth/tenant/upsert`, {
+    const response = await fetch(`${BACKEND_URL}/api/auth/tenant/upsert`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -43,7 +41,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('[API /auth/tenant] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Error interno del servidor' },
       { status: 500 }
@@ -62,9 +59,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    
-    const response = await fetch(`${backendUrl}/api/auth/tenant/my-tenants`, {
+    const response = await fetch(`${BACKEND_URL}/api/auth/tenant/my-tenants`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${session.accessToken}`,
@@ -80,7 +75,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('[API /auth/tenant] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Error interno del servidor' },
       { status: 500 }

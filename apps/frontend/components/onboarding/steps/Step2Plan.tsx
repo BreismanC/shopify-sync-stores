@@ -10,9 +10,7 @@ import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
 import { apiFetch } from "@/lib/auth";
 import { cn } from "@/utils/class-names";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+import { BACKEND_URL } from "@/lib/env";
 
 interface PlanInfo {
   planType: "BASIC" | "PRO" | "ENTERPRISE";
@@ -31,22 +29,25 @@ const PLAN_DETAILS: Record<
   BASIC: {
     name: "Basic",
     description: "Para tiendas que recién empiezan.",
-    pricing: { monthly: 29, yearly: 290 },
+    pricing: { monthly: 29_000, yearly: 295_800 },
     features: ["3 tiendas fuente", "2 tiendas destino", "3 miembros de equipo"],
   },
   PRO: {
     name: "Pro",
     description: "Para equipos en crecimiento.",
-    pricing: { monthly: 79, yearly: 790 },
+    pricing: { monthly: 79_000, yearly: 805_800 },
     features: ["10 tiendas fuente", "5 tiendas destino", "10 miembros de equipo"],
   },
   ENTERPRISE: {
     name: "Enterprise",
     description: "Sin límites, soporte prioritario.",
-    pricing: { monthly: 199, yearly: 1990 },
+    pricing: { monthly: 199_000, yearly: 2_029_800 },
     features: ["Tiendas ilimitadas", "Miembros ilimitados", "SLA dedicado"],
   },
 };
+
+const formatCopPrice = (value: number) =>
+  new Intl.NumberFormat("es-CO").format(value);
 
 type BillingPeriod = "MONTHLY" | "YEARLY";
 
@@ -96,9 +97,17 @@ export function Step2Plan() {
     setIsSubmitting(true);
     try {
       const data = await apiFetch<{
-        preferenceId: string;
+        preapprovalId: string;
         initPoint: string;
-        onboardingStatus: OnboardingStatus;
+        /**
+         * Token firmado corto, emitido por el backend. Se guarda en
+         * sessionStorage para que la página pública `/payments/status`
+         * pueda consultar el endpoint público
+         * `/api/onboarding/public/preapproval-status` cuando MP
+         * redirija cross-site (donde las cookies de NextAuth pueden no
+         * reenviarse).
+         */
+        statusToken?: string;
       }>(
         `${BACKEND_URL}/api/onboarding/preference`,
         {
@@ -109,8 +118,34 @@ export function Step2Plan() {
         accessToken,
       );
 
-      await updateSession({ onboardingStatus: data.onboardingStatus });
-      // Redirige a MercadoPago (initPoint). El webhook nos actualizará.
+      if (!data.initPoint) {
+        throw new Error("MercadoPago no devolvió un enlace de pago");
+      }
+
+      // Guardar el token ANTES de redirigir, así la página pública
+      // `/payments/status` puede leerlo cuando MP vuelva a nosotros
+      // via back_url. Lo borramos al usarlo en
+      // `PaymentStatusClient.consumeStatusToken()`.
+      if (typeof window !== "undefined" && data.statusToken) {
+        try {
+          window.sessionStorage.setItem(
+            "mp:statusToken",
+            data.statusToken,
+          );
+        } catch {
+          // sessionStorage puede no estar disponible (modo privado,
+          // almacenamiento lleno). Sin token, la página pública
+          // mostrará un error de "no se encontró el token", así que
+          // el usuario puede volver al onboarding.
+        }
+      }
+
+      // Redirigir al checkout de MercadoPago. El user paga en MP y
+      // luego es llevado (back_url) a /payments/status, donde se hace
+      // polling del estado y se redirige al paso 3 del onboarding o
+      // al dashboard según corresponda. NO actualizamos la sesión
+      // acá: el `onboardingStatus` no cambia hasta que el webhook
+      // confirme el pago.
       window.location.href = data.initPoint;
     } catch (err: any) {
       toast.error(err.message || "Error al iniciar el pago");
@@ -197,7 +232,7 @@ export function Step2Plan() {
                 </span>
                 <div className="mt-4 flex items-baseline gap-1">
                   <span className="text-3xl font-bold text-on-background">
-                    ${price}
+                    ${formatCopPrice(price)}
                   </span>
                   <span className="text-sm text-on-surface-variant">
                     /{billingPeriod === "MONTHLY" ? "mes" : "año"}

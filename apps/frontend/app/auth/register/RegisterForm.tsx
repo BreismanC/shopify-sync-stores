@@ -12,6 +12,7 @@ import { AuthResponse, RegisterCredentials } from "@/types/auth";
 import { Eye, EyeOff } from 'lucide-react';
 import { registerSchema } from '@/schemas/auth';
 import { validateFormData } from '@/utils/web-validation';
+import { BACKEND_URL } from '@/lib/env';
 
 export function RegisterForm() {
   const router = useRouter();
@@ -43,7 +44,7 @@ export function RegisterForm() {
     setFetchStatus('loading');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+      const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -181,7 +182,7 @@ export function RegisterForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base" 
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`;
+                  window.location.href = `${BACKEND_URL}/api/auth/google`;
                 }}
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -195,7 +196,7 @@ export function RegisterForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base" 
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/facebook`;
+                  window.location.href = `${BACKEND_URL}/api/auth/facebook`;
                 }}
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

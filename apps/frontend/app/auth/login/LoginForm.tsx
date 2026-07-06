@@ -17,6 +17,7 @@ import {
   isValidStatus,
   statusToStep,
 } from "@/lib/auth/onboarding-status";
+import { BACKEND_URL } from "@/lib/env";
 import Link from "next/link";
 
 export function LoginForm() {
@@ -50,7 +51,7 @@ export function LoginForm() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        `${BACKEND_URL}/api/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -243,7 +244,7 @@ export function LoginForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base"
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`;
+                  window.location.href = `${BACKEND_URL}/api/auth/google`;
                 }}
               >
                 Google
@@ -253,7 +254,7 @@ export function LoginForm() {
                 className="h-12 flex items-center justify-center gap-2 font-semibold text-base"
                 type="button"
                 onClick={() => {
-                  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/facebook`;
+                  window.location.href = `${BACKEND_URL}/api/auth/facebook`;
                 }}
               >
                 Facebook

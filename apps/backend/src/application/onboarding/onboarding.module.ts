@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { OnboardingController } from './onboarding.controller';
+import { OnboardingPublicController } from './onboarding-public.controller';
 import { OnboardingService } from './onboarding.service';
 import { AuthModule } from '../auth/auth.module';
 import { TenantModule } from '../tenant/tenant.module';
@@ -16,6 +17,13 @@ import { TeamInvitationModule } from '../team-invitation/team-invitation.module'
  * Centraliza los endpoints del flujo de onboarding multi-step.
  * Depende de los módulos de Auth (User repo), Tenant, Store, TeamMember,
  * Subscription, MercadoPago y Email.
+ *
+ * Controllers:
+ * - `OnboardingController`: endpoints protegidos (requieren JWT).
+ * - `OnboardingPublicController`: endpoints públicos (autorización por
+ *   token firmado). Usados desde la página `/payments/status` para
+ *   que MP pueda redirigir cross-site sin chocar con el guard de
+ *   sesión de NextAuth.
  */
 @Module({
   imports: [
@@ -28,7 +36,7 @@ import { TeamInvitationModule } from '../team-invitation/team-invitation.module'
     forwardRef(() => EmailModule),
     forwardRef(() => TeamInvitationModule),
   ],
-  controllers: [OnboardingController],
+  controllers: [OnboardingController, OnboardingPublicController],
   providers: [OnboardingService],
   exports: [OnboardingService],
 })

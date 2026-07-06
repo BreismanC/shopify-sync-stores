@@ -12,32 +12,40 @@ import { ConfigService } from '@nestjs/config';
 import { MercadoPagoWebhookService } from './mercadopago-webhook.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { OnboardingService } from '../../application/onboarding/onboarding.service';
-import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
+
+/**
+ * Tipos de webhook que MercadoPago v3 manda relacionados con suscripciones.
+ *
+ * Ref: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+ *
+ * - `subscription_preapproval`: la suscripción fue creada o actualizada
+ *   (cambios de plan, pausas, reactivaciones).
+ * - `subscription_authorized_payment`: el pago pendiente de la suscripción
+ *   fue aprobado (es el evento clave para avanzar al usuario al siguiente
+ *   paso del onboarding).
+ * - `subscription_preapproval_plan`: cambios en el plan asociado (no
+ *   aplicable a suscripciones sin plan).
+ */
+type MpWebhookType =
+  | 'subscription_preapproval'
+  | 'subscription_authorized_payment'
+  | 'subscription_preapproval_plan'
+  | string; // MP puede sumar nuevos tipos en el futuro
 
 /**
  * MercadoPago Webhook Controller
  *
- * Recibe notificaciones IPN (Instant Payment Notification) de MercadoPago.
- * NO está protegido por JwtAuthGuard — MP no envía JWT.
- * El signature verification se hace con `MERCADOPAGO_WEBHOOK_SECRET`.
+ * Recibe notificaciones IPN de MercadoPago v3.
  *
- * URL para configurar en MP Dashboard:
+ * NO está protegido por JwtAuthGuard — MP no envía JWT.
+ * La verificación de firma usa el header `x-signature` con el formato
+ * `ts=<ts>,v1=<firma>` y el header `x-request-id`. El template firmado es
+ * `id:[data.id];request-id:[x-request-id];ts:[ts];` con HMAC SHA256.
+ *
+ * URL para configurar en el dashboard de MP:
  *   https://<tu-dominio>/api/webhooks/mercadopago
  *
  * En dev: usar cloudflared tunnel (ver wiki/specs/MERCADOPAGO_DEV_TUNNEL.md).
- *
- * Topics manejados:
- *  - `preapproval` (creación, actualización, activación, cancelación de
- *    suscripciones recurrentes)
- *  - `payment` (cobros individuales de la suscripción)
- *
- * Flujo de preapproval:
- *  1. MP notifica con `type: 'preapproval'` y `data.id` = preapproval id
- *  2. Backend hace GET /v1/preapprovals/:id para obtener el estado real
- *  3. Si status = 'authorized' o 'active' y el user está en plan selection,
- *     transiciona a PENDING_STORE_CONFIG
- *  4. Si status = 'cancelled' o 'paused', marca la subscription como tal
- *     sin transicionar al user
  */
 @Controller('webhooks/mercadopago')
 export class MercadoPagoWebhookController {
@@ -53,29 +61,10 @@ export class MercadoPagoWebhookController {
   @Post()
   @HttpCode(HttpStatus.OK)
   async handle(
-    @Body() body: any,
-    @Headers('x-mp-signature') signature?: string,
-    @Headers('x-mp-timestamp') timestamp?: string,
+    @Body() body: { type?: MpWebhookType; data?: { id?: string } },
+    @Headers('x-signature') signatureHeader?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    // Convertir body a string crudo para verificar firma
-    const rawBody = JSON.stringify(body);
-
-    if (signature && timestamp) {
-      const valid = await this.webhookService.verifySignature(
-        signature,
-        rawBody,
-        timestamp,
-      );
-      if (!valid) {
-        this.logger.warn('Invalid webhook signature');
-        throw new BadRequestException('Invalid webhook signature');
-      }
-    } else {
-      this.logger.warn(
-        'No se recibió signature header. En producción MERCADOPAGO_WEBHOOK_SECRET debe estar configurado.',
-      );
-    }
-
     const type = body?.type;
     const dataId = body?.data?.id;
 
@@ -83,89 +72,109 @@ export class MercadoPagoWebhookController {
       throw new BadRequestException('Invalid webhook payload');
     }
 
+    // Verificación de firma según doc oficial de MP v3.
+    // Solo bloqueamos en producción; en dev dejamos pasar para que el
+    // flujo se pueda probar con simulaciones locales.
+    const isProduction =
+      (this.configService.get<string>('NODE_ENV') ?? 'development') ===
+      'production';
+    if (isProduction && signatureHeader && requestId) {
+      const valid = await this.webhookService.verifySignature({
+        signatureHeader,
+        requestId,
+        dataId,
+      });
+      if (!valid) {
+        this.logger.warn(
+          `[MP Webhook] Invalid signature for type=${type} id=${dataId}`,
+        );
+        throw new BadRequestException('Invalid webhook signature');
+      }
+    } else if (!signatureHeader) {
+      this.logger.warn(
+        `[MP Webhook] No se recibió header x-signature. En producción MERCADOPAGO_WEBHOOK_SECRET debe estar configurado.`,
+      );
+    }
+
     this.logger.log(`[MP Webhook] type=${type} id=${dataId}`);
 
-    if (type === 'preapproval') {
-      await this.handlePreapproval(dataId);
-    } else if (type === 'payment') {
-      await this.handlePayment(dataId);
-    } else {
-      this.logger.warn(`[MP Webhook] Unknown type: ${type}`);
-    }
+    switch (type) {
+      case 'subscription_preapproval':
+        // Creación o actualización de la suscripción. Traemos el estado
+        // real desde MP para no depender del body.
+        await this.handlePreapproval(dataId);
+        return { received: true };
 
-    return { received: true };
+      case 'subscription_authorized_payment':
+        // El pago pendiente de la suscripción fue aprobado. Esto es
+        // equivalente al viejo evento `preapproval` con status=authorized.
+        await this.handlePreapproval(dataId);
+        return { received: true };
+
+      case 'subscription_preapproval_plan':
+        // Cambios en el plan de la suscripción. No aplica a suscripciones
+        // sin plan asociado, pero MP lo manda igual; lo logueamos y
+        // respondemos 200 para que no reintente.
+        this.logger.log(
+          `[MP Webhook] Ignoring subscription_preapproval_plan for ${dataId} (no aplica a este flujo)`,
+        );
+        return { received: true };
+
+      default:
+        this.logger.warn(`[MP Webhook] Unknown type: ${type}`);
+        return { received: true };
+    }
   }
 
   /**
-   * Maneja notificaciones de preapproval.
-   * Hace GET /v1/preapprovals/:id para confirmar el estado real antes de
-   * transicionar.
+   * Maneja eventos relacionados al estado de una suscripción:
+   * `subscription_preapproval` y `subscription_authorized_payment`.
+   *
+   * Hace GET /preapproval/:id en MP para confirmar el estado real antes
+   * de transicionar. Luego delega al servicio de webhook para actualizar
+   * la subscription local y, si corresponde, avanzar al usuario.
+   *
+   * Si MP devuelve 400/404 al resolver el preapproval (caso típico de
+   * simulaciones con IDs inventados o preapprovals creados y luego
+   * borrados en MP), logueamos el detalle y devolvemos 200 igualmente
+   * para no acumular reintentos de un evento que no podemos procesar.
    */
   private async handlePreapproval(preapprovalId: string): Promise<void> {
+    let status: Awaited<
+      ReturnType<MercadoPagoService['getPreapprovalById']>
+    >;
     try {
-      const status = await this.mercadoPagoService.getPreapprovalStatus(
+      status = await this.mercadoPagoService.getPreapprovalById(
         preapprovalId,
       );
-
-      this.logger.log(
-        `[MP Webhook] preapproval ${preapprovalId} status: ${status.status}`,
-      );
-
-      // Delegar al servicio de webhook (que ya actualiza la subscription)
-      await this.webhookService.handlePreapprovalEvent({
-        id: preapprovalId,
-        status: status.status,
-        externalSubscriptionId: preapprovalId,
-        preapprovalPlanId: '',
-        nextBillingDate: status.nextBillingDate.toISOString(),
-        lastBillingDate: status.lastBillingDate.toISOString(),
-      });
-
-      // Si el pago fue aprobado y el user está en plan selection,
-      // transicionar al siguiente paso del onboarding.
-      if (status.status === 'active') {
-        await this.advanceUserAfterPayment(preapprovalId);
-      }
     } catch (err) {
-      this.logger.error(
-        `[MP Webhook] Error processing preapproval ${preapprovalId}: ${err}`,
+      this.logger.warn(
+        `[MP Webhook] No se pudo resolver el preapproval ${preapprovalId} en MP. Ack 200 para evitar reintentos.`,
       );
-      throw err;
+      return;
     }
-  }
 
-  /**
-   * Maneja notificaciones de payment (cobros recurrentes).
-   */
-  private async handlePayment(paymentId: string): Promise<void> {
-    // Para cobros recurrentes, MP envía el ID del pago pero el link
-    // a la subscription requiere otro GET. Por simplicidad, el service
-    // ya maneja la actualización del estado de la subscription.
-    await this.webhookService.handlePaymentEvent({
-      id: paymentId,
-      status: 'approved', // Asumimos approved en este punto; el service real haría otro GET
-      externalSubscriptionId: paymentId,
-      paymentType: 'credit_card',
-      transactionAmount: 0,
+    await this.webhookService.handlePreapprovalEvent({
+      preapprovalId,
+      status: status.status,
+      externalReference: status.externalReference,
+      nextBillingDate: status.nextBillingDate.toISOString(),
+      lastBillingDate: status.lastBillingDate.toISOString(),
     });
+
+    // `advanceUserAfterPayment` es idempotente: solo avanza si el user
+    // está en PENDING_PLAN_SELECTION, así que es seguro llamarlo varias
+    // veces (MP dispara múltiples eventos por suscripción).
+    await this.advanceUserAfterPayment(preapprovalId);
   }
 
-  /**
-   * Si un usuario completó el pago del plan y está en PENDING_PLAN_SELECTION,
-   * transiciona a PENDING_STORE_CONFIG.
-   */
   private async advanceUserAfterPayment(
     externalSubscriptionId: string,
   ): Promise<void> {
     try {
-      const advanced = await this.onboardingService.advanceUserAfterPayment(
+      await this.onboardingService.advanceUserAfterPayment(
         externalSubscriptionId,
       );
-      if (advanced) {
-        this.logger.log(
-          `[MP Webhook] User ${advanced.userId} advanced to ${advanced.onboardingStatus}`,
-        );
-      }
     } catch (err) {
       this.logger.error(
         `[MP Webhook] Error advancing user after payment: ${err}`,

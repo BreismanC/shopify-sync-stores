@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/Dialog';
+import { BACKEND_URL } from '@/lib/env';
 
 interface Props {
   planType: SubscriptionPlan;
@@ -67,9 +68,8 @@ export function PaymentForm({
       }
 
       // Call backend to create preapproval
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
       const response = await fetch(
-        `${backendUrl}/api/subscriptions/create-preapproval`,
+        `${BACKEND_URL}/api/subscriptions/create-preapproval`,
         {
           method: 'POST',
           headers: {
@@ -230,7 +230,7 @@ export function PaymentForm({
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-12">Total a pagar:</span>
               <span className="font-semibold text-lg">
-                USD ${price.toLocaleString()}
+                COP ${new Intl.NumberFormat('es-CO').format(price)}
               </span>
             </div>
           </div>

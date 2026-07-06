@@ -2,9 +2,9 @@ import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import jwt from 'jsonwebtoken';
 import { OnboardingStatus, isValidStatus } from '@/lib/auth/onboarding-status';
+import { BACKEND_URL } from '@/lib/env';
 
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'development-secret-change-in-production';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,

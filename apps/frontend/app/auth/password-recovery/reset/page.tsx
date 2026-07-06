@@ -9,6 +9,7 @@ import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import { resetPasswordSchema } from "@/schemas/auth";
 import { validateFormData } from "@/utils/web-validation";
 import { Card } from "@/components/ui/Card";
+import { BACKEND_URL } from "@/lib/env";
 
 function PasswordRecoveryResetInner() {
   const router = useRouter();
@@ -42,7 +43,7 @@ function PasswordRecoveryResetInner() {
     
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/reset-password`,
+        `${BACKEND_URL}/api/auth/reset-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

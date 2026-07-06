@@ -1,3 +1,4 @@
+import { BACKEND_URL } from '@/lib/env';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
@@ -12,11 +13,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
     const authHeader = req.headers.get('Authorization');
 
     const response = await fetch(
-      `${backendUrl}/api/subscriptions/create-preapproval`,
+      `${BACKEND_URL}/api/subscriptions/create-preapproval`,
       {
         method: 'POST',
         headers: {
@@ -37,8 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(data);
-  } catch (error) {
-    console.error('create-preapproval route error:', error);
+  } catch {
     return NextResponse.json(
       { message: 'Error interno del servidor' },
       { status: 500 }

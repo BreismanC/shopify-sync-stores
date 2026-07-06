@@ -9,9 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Form, FormField, FormSubmit } from "@/components/ui/Form";
 import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import { apiFetch } from "@/lib/auth";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+import { BACKEND_URL } from "@/lib/env";
 
 interface InvitationPreview {
   valid: boolean;

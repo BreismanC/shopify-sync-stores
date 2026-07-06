@@ -10,9 +10,14 @@ import { ISubscriptionRepository } from '../../application/subscription/reposito
  *
  * Procesa las notificaciones IPN (Instant Payment Notification) de MercadoPago.
  *
- * Verificación de firma SHA256:
- * MP firma las notificaciones con el secret de webhook.
- * La firma se verifica comparando el SHA256 del body + timestamp con el header x-mp-signature.
+ * Verificación de firma SHA256 (formato MP v3):
+ * - Header `x-signature` con formato `ts=<ts>,v1=<firma>` (separado por `,`
+ *   y cada parte por `=`).
+ * - Header `x-request-id` con el id de la request.
+ * - Template firmado: `id:[data.id];request-id:[x-request-id];ts:[ts];`
+ *   HMAC SHA256 con `MERCADOPAGO_WEBHOOK_SECRET`.
+ *
+ * Ref: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
  */
 @Injectable()
 export class MercadoPagoWebhookService {
@@ -27,38 +32,54 @@ export class MercadoPagoWebhookService {
   }
 
   /**
-   * Verifica la firma SHA256 del webhook de MercadoPago
+   * Verifica la firma SHA256 del webhook de MercadoPago.
    *
-   * Headers necesarios:
-   * - x-mp-signature: firma SHA256
-   * - x-mp-timestamp: timestamp de la solicitud
-   *
-   * @param signature - Firma del header x-mp-signature
-   * @param body - Raw body string para verificar
-   * @param timestamp - Timestamp del header x-mp-timestamp
+   * @param signatureHeader Contenido crudo del header `x-signature`
+   *   (ej: `ts=1700000000,v1=abc123...`).
+   * @param requestId Valor del header `x-request-id`.
+   * @param dataId ID dentro de `body.data.id` (resource id del webhook).
    */
-  async verifySignature(
-    signature: string,
-    body: string,
-    timestamp: string,
-  ): Promise<boolean> {
+  async verifySignature(params: {
+    signatureHeader: string;
+    requestId: string;
+    dataId: string;
+  }): Promise<boolean> {
     if (!this.webhookSecret) {
-      console.warn(
-        '[MercadoPagoWebhook] Webhook secret no configurado, omitiendo verificación',
-      );
       return true; // En desarrollo sin secret, aceptamos todo
     }
 
-    // El mensaje que se firma es: timestamp + body
-    const message = `${timestamp}${body}`;
+    const { ts, v1 } = this.parseSignatureHeader(params.signatureHeader);
+    if (!ts || !v1) {
+      return false;
+    }
 
-    // Generar HMAC SHA256 del mensaje
+    // Template firmado: `id:[data.id];request-id:[x-request-id];ts:[ts];`
+    // El data.id puede llegar con mayúsculas; la doc oficial pide pasarlo
+    // a minúsculas antes de armar el manifest.
+    const signedTemplate = `id:${params.dataId.toLowerCase()};request-id:${params.requestId};ts:${ts};`;
+
     const expectedSignature = createHmac('sha256', this.webhookSecret)
-      .update(message)
+      .update(signedTemplate)
       .digest('hex');
 
-    // Comparar firmas en tiempo constante para evitar timing attacks
-    return this.secureCompare(signature, expectedSignature);
+    return this.secureCompare(v1, expectedSignature);
+  }
+
+  /**
+   * Parsea el header `x-signature` con formato `ts=1700000000,v1=abc123`.
+   * Devuelve `ts` y `v1` por separado. Tolera espacios alrededor del `=`.
+   */
+  private parseSignatureHeader(header: string): { ts?: string; v1?: string } {
+    const result: { ts?: string; v1?: string } = {};
+    for (const part of header.split(',')) {
+      const eq = part.indexOf('=');
+      if (eq === -1) continue;
+      const key = part.slice(0, eq).trim();
+      const value = part.slice(eq + 1).trim();
+      if (key === 'ts') result.ts = value;
+      else if (key === 'v1') result.v1 = value;
+    }
+    return result;
   }
 
   /**
@@ -77,39 +98,52 @@ export class MercadoPagoWebhookService {
   }
 
   /**
-   * Procesa evento de preapproval (suscripción)
+   * Procesa evento de preapproval (suscripción).
    *
    * Topics: preapproval
-   * Actions: created, activated, updated, cancelled, overdue
+   * Actions: created, authorized, active, cancelled, paused, expired
+   *
+   * El estado "authorized" es el que MP devuelve cuando el usuario aprueba
+   * el pago pendiente. Luego MP lo transiciona a "active" automáticamente.
+   *
+   * @param preapprovalId  ID del preapproval en MP
+   * @param status         Status reportado por MP (puede ser "authorized", "active", etc.)
+   * @param externalReference external_reference enviado al crear el preapproval (formato: "tenant:<tenantId>")
+   * @param nextBillingDate Próxima fecha de cobro
+   * @param lastBillingDate Última fecha de cobro
    */
   async handlePreapprovalEvent(data: {
-    id: string;
-    status: 'pending' | 'active' | 'cancelled' | 'paused' | 'expired';
-    externalSubscriptionId: string;
-    preapprovalPlanId: string;
+    preapprovalId: string;
+    status: 'pending' | 'authorized' | 'active' | 'cancelled' | 'paused' | 'expired';
+    externalReference: string | null;
     nextBillingDate: string;
     lastBillingDate: string;
   }): Promise<void> {
-    console.log(
-      `[MercadoPagoWebhook] Preapproval event: ${data.id} - ${data.status}`,
-    );
-
-    // Encontrar la suscripción por externalSubscriptionId
-    const subscription =
+    let subscription =
       await this.subscriptionRepository.findByExternalSubscriptionId(
-        data.externalSubscriptionId,
+        data.preapprovalId,
       );
+
+    if (!subscription && data.externalReference) {
+      const tenantId = this.parseTenantIdFromExternalRef(data.externalReference);
+      if (tenantId) {
+        subscription =
+          await this.subscriptionRepository.findByTenantId(tenantId);
+        if (subscription) {
+          subscription.externalSubscriptionId = data.preapprovalId;
+          await this.subscriptionRepository.save(subscription);
+        }
+      }
+    }
 
     if (!subscription) {
-      console.warn(
-        `[MercadoPagoWebhook] Suscripción no encontrada para externalId: ${data.externalSubscriptionId}`,
-      );
       return;
     }
 
     switch (data.status) {
+      case 'authorized':
       case 'active':
-        // Activar suscripción - el usuario pagó exitosamente
+        // Pago aprobado — activar suscripción
         subscription.status = SubscriptionStatus.ACTIVE;
         subscription.lastBillingDate = new Date(data.lastBillingDate);
         subscription.nextBillingDate = new Date(data.nextBillingDate);
@@ -126,7 +160,7 @@ export class MercadoPagoWebhookService {
 
       case 'paused':
       case 'expired':
-        // Sospender por falta de pago
+        // Suspender por falta de pago
         subscription.status = SubscriptionStatus.SUSPENDED;
         subscription.autoRecurrent = false;
         await this.subscriptionRepository.save(subscription);
@@ -135,14 +169,24 @@ export class MercadoPagoWebhookService {
       case 'pending':
         // La suscripción fue creada pero el primer pago aún no se procesó
         subscription.status = SubscriptionStatus.PENDING_PAYMENT;
-        subscription.externalSubscriptionId = data.id;
         await this.subscriptionRepository.save(subscription);
         break;
     }
   }
 
   /**
-   * Procesa evento de payment (cobro)
+   * Extrae el tenantId del external_reference.
+   * Formato esperado: "tenant:<tenantId>"
+   */
+  private parseTenantIdFromExternalRef(externalRef: string): string | null {
+    if (externalRef.startsWith('tenant:')) {
+      return externalRef.slice(7);
+    }
+    return null;
+  }
+
+  /**
+   * Procesa evento de payment (cobro).
    *
    * Topics: payment
    * Actions: success, failure
@@ -154,25 +198,18 @@ export class MercadoPagoWebhookService {
     paymentType: string;
     transactionAmount: number;
   }): Promise<void> {
-    console.log(
-      `[MercadoPagoWebhook] Payment event: ${data.id} - ${data.status}`,
-    );
-
     const subscription =
       await this.subscriptionRepository.findByExternalSubscriptionId(
         data.externalSubscriptionId,
       );
 
     if (!subscription) {
-      console.warn(
-        `[MercadoPagoWebhook] Suscripción no encontrada para externalId: ${data.externalSubscriptionId}`,
-      );
       return;
     }
 
     switch (data.status) {
       case 'approved':
-        // Cobro exitoso - renovar suscripción
+        // Cobro exitoso — renovar suscripción
         subscription.lastBillingDate = new Date();
         subscription.amountPaid =
           Number(subscription.amountPaid) + data.transactionAmount;
@@ -188,7 +225,7 @@ export class MercadoPagoWebhookService {
         break;
 
       case 'rejected':
-        // Pago rechazado - suspender temporalmente
+        // Pago rechazado — suspender temporalmente
         subscription.status = SubscriptionStatus.SUSPENDED;
         subscription.autoRecurrent = false;
         await this.subscriptionRepository.save(subscription);

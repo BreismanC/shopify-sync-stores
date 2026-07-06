@@ -8,26 +8,40 @@ import {
   isValidStep,
 } from '@/lib/auth/onboarding-status';
 
-const publicRoutes = ['/', '/auth/login', '/auth/register', '/auth/error', '/api/auth', '/_next', '/favicon.ico'];
-const protectedRoutes = ['/dashboard', '/onboarding', '/settings', '/stores', '/products', '/orders', '/tenant-selector'];
+/**
+ * Rutas que SIEMPRE requieren sesión iniciada (sin importar el
+ * onboardingStatus). Si el usuario no está autenticado, lo mandamos
+ * al login con `callbackUrl` para volver después.
+ */
+const protectedRoutes = [
+  '/dashboard',
+  '/onboarding',
+  '/settings',
+  '/stores',
+  '/products',
+  '/orders',
+  '/tenant-selector',
+];
+
+/**
+ * Helper: devuelve `true` si la ruta actual empieza con alguna de
+ * las rutas explícitamente protegidas.
+ */
+const isProtectedRoute = (pathname: string): boolean =>
+  protectedRoutes.some((route) => pathname.startsWith(route));
 
 // Note: `middleware.ts` is deprecated in Next.js 16 and renamed to `proxy.ts`.
-// NextAuth v5 still works with this proxy via the `auth(...)` wrapper.
+// NextAuth v5 still works with this proxy via el wrapper `auth(...)`.
 export default auth((req) => {
   const pathname = req.nextUrl.pathname;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const authData = (req as any).auth;
   const isLoggedIn = !!authData;
 
-  const isPublicRoute = publicRoutes.some((route) => {
-    if (route === '/') return pathname === '/';
-    return pathname.startsWith(route);
-  });
-
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
-
+  // 1) Sin sesión → solo dejamos pasar rutas NO protegidas.
+  //    Todo lo demás va a /auth/login con callbackUrl.
   if (!isLoggedIn) {
-    if (isProtectedRoute) {
+    if (isProtectedRoute(pathname)) {
       const loginUrl = new URL('/auth/login', req.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
@@ -41,7 +55,7 @@ export default auth((req) => {
     ? authData.user.onboardingStatus
     : undefined;
 
-  // COMPLETED → acceso total
+  // 2) Onboarding COMPLETED → acceso total (excepto /auth/* que va al dashboard).
   if (onboardingStatus === OnboardingStatus.COMPLETED) {
     if (pathname.startsWith('/auth/')) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
@@ -49,31 +63,41 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Sin onboardingStatus (caso raro) o PENDING_*
-  // Forzamos al usuario a /onboarding (excepto si ya está ahí).
+  // 2.1) Usuarios con un step avanzado del onboarding (ya pasaron step 2
+  //      y eligieron su plan, o ya están configurando la tienda). Los
+  //      dejamos acceder al dashboard igual; no tiene sentido devolverlos
+  //      a /onboarding porque están en pleno flujo.
+  const isDashboard =
+    pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  if (
+    isDashboard &&
+    (onboardingStatus === OnboardingStatus.PENDING_STORE_CONFIG ||
+      onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION)
+  ) {
+    return NextResponse.next();
+  }
+
+  const isOnboardingPath =
+    pathname === '/onboarding' || pathname.startsWith('/onboarding/');
+  const isAuthPath = pathname.startsWith('/auth/');
+
+  // 3) Sin onboardingStatus válido (caso raro): lo mandamos a /onboarding.
   if (!onboardingStatus) {
-    if (pathname !== '/onboarding' && !pathname.startsWith('/onboarding')) {
+    if (!isOnboardingPath) {
       return NextResponse.redirect(new URL('/onboarding', req.url));
     }
     return NextResponse.next();
   }
 
-  // Está en onboarding: si intenta acceder a una ruta protegida, redirigir.
-  const isOnboardingPath = pathname === '/onboarding' || pathname.startsWith('/onboarding/');
-  const isAuthPath = pathname.startsWith('/auth/');
-  const isApiPath = pathname.startsWith('/api/');
-
+  // 4) Está en onboarding. Si intenta acceder a /auth/* → a /onboarding.
   if (isAuthPath) {
     return NextResponse.redirect(new URL('/onboarding', req.url));
   }
 
-  if (!isOnboardingPath && !isApiPath) {
-    return NextResponse.redirect(new URL('/onboarding', req.url));
-  }
-
-  // Está en /onboarding. Si tiene ?step=N y N no está desbloqueado, redirigir
-  // al step actual derivado del onboardingStatus.
-  if (pathname === '/onboarding') {
+  // 5) Está en /onboarding. Validamos que el step solicitado (si lo hay)
+  //    esté desbloqueado; si no, redirigimos al step que sí está
+  //    desbloqueado según el `onboardingStatus` actual.
+  if (isOnboardingPath && pathname === '/onboarding') {
     const requestedStep = Number(req.nextUrl.searchParams.get('step'));
     if (Number.isFinite(requestedStep) && isValidStep(requestedStep)) {
       if (!isStepUnlocked(requestedStep, onboardingStatus)) {
@@ -82,14 +106,25 @@ export default auth((req) => {
         return NextResponse.redirect(url);
       }
     } else {
-      // Sin ?step válido → redirigir al paso actual
+      // Sin ?step válido → redirigir al step actual
       const currentStep = statusToStep(onboardingStatus);
       const url = new URL(`/onboarding?step=${currentStep}`, req.url);
       return NextResponse.redirect(url);
     }
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  // 6) Está en onboarding pero en una ruta NO protegida (ej:
+  //    /payments/status, /api/auth/callback/*, futuras rutas neutras
+  //    como /billing). Las dejamos pasar — la página pública hace su
+  //    propia autorización por token firmado (ver MercadoPagoTokenService)
+  //    y luego redirige al step correcto.
+  if (!isProtectedRoute(pathname)) {
+    return NextResponse.next();
+  }
+
+  // 7) Ruta protegida + onboarding incompleto → forzar /onboarding.
+  return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
 export const config = {

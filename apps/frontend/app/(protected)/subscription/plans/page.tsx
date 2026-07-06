@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { SubscriptionPlan, BillingPeriod } from '@shopify-sync/database/enums';
 import { PlanSelector } from '@/components/subscription/PlanSelector';
+import { BACKEND_URL } from '@/lib/env';
 
 export default function PlansPage() {
   const router = useRouter();
@@ -11,8 +12,7 @@ export default function PlansPage() {
     // For TRIAL, directly start the trial
     if (plan === SubscriptionPlan.TRIAL) {
       try {
-        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-        await fetch(`${backendUrl}/api/subscriptions/start-trial`, {
+        await fetch(`${BACKEND_URL}/api/subscriptions/start-trial`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ planType: plan }),

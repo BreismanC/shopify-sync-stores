@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SubscriptionPlan, SubscriptionStatus } from '@shopify-sync/database/enums';
 import { SubscriptionCard } from '@/components/subscription/SubscriptionCard';
 import { Button } from '@/components/ui/Button';
+import { BACKEND_URL } from '@/lib/env';
 
 interface SubscriptionData {
   plan: SubscriptionPlan;
@@ -57,9 +58,8 @@ export default function SubscriptionPage({ subscription }: Props) {
       )
     ) {
       try {
-        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
         const response = await fetch(
-          `${backendUrl}/api/subscriptions/cancel`,
+          `${BACKEND_URL}/api/subscriptions/cancel`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -32,6 +32,7 @@ describe('OnboardingService', () => {
         tenantService as any,
         {} as any,
         {} as any,
+        {} as any,
       );
 
       const result = await service.upsertTenant(user.id, { name: tenant.name });

@@ -47,6 +47,7 @@ export class SubscriptionService {
     tenantId: string,
     newPlan: SubscriptionPlan,
     billingPeriod: BillingPeriod,
+    externalSubscriptionId?: string,
   ): Promise<Subscription> {
     const subscription =
       await this.subscriptionRepository.findByTenantId(tenantId);
@@ -57,6 +58,9 @@ export class SubscriptionService {
     subscription.planType = newPlan;
     subscription.billingPeriod = billingPeriod;
     subscription.status = SubscriptionStatus.PENDING_PAYMENT;
+    if (externalSubscriptionId) {
+      subscription.externalSubscriptionId = externalSubscriptionId;
+    }
 
     return this.subscriptionRepository.save(subscription);
   }

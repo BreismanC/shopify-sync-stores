@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Body,
+  Param,
   Req,
   UseGuards,
   HttpCode,
@@ -56,13 +57,33 @@ export class OnboardingController {
     return this.onboardingService.getSubscriptionStatus(req.user.id);
   }
 
+  /**
+   * Polling endpoint: consulta el estado de un preapproval en MP y devuelve
+   * la información de suscripción local asociada y el onboardingStatus del
+   * usuario solicitante. El frontend lo usa en /payments/status mientras
+   * espera la redirección de MP.
+   *
+   * Requiere autenticación y que el user pertenezca al tenant de la
+   * suscripción del preapproval.
+   */
+  @Get('subscription/preapproval/:preapprovalId')
+  async getPreapprovalStatus(
+    @Req() req: RequestWithUser,
+    @Param('preapprovalId') preapprovalId: string,
+  ) {
+    return this.onboardingService.getPreapprovalStatus(
+      req.user.id,
+      preapprovalId,
+    );
+  }
+
   @Post('preference')
   @HttpCode(HttpStatus.OK)
-  async createPreference(
+  async createSubscription(
     @Req() req: RequestWithUser,
     @Body() body: CreatePreferenceDto,
   ) {
-    return this.onboardingService.createPreference(req.user.id, body);
+    return this.onboardingService.createSubscription(req.user.id, body);
   }
 
   @Post('subscription/skip')

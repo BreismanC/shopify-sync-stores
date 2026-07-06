@@ -26,8 +26,10 @@ import {
 } from '../../domain/enums/subscription-plan.enum';
 import { BillingPeriod } from '../../domain/enums/billing-period.enum';
 import { TenantStatus } from '../../domain/enums/tenant-status.enum';
+import { SubscriptionStatus } from '../../domain/enums/subscription-status.enum';
 import { EncryptionUtil } from '../../infrastructure/security/encryption.util';
 import { MercadoPagoService } from '../../infrastructure/mercadopago/mercadopago.service';
+import { MercadoPagoTokenService } from '../../infrastructure/mercadopago/mercadopago-token.service';
 import { TeamInvitationService } from '../team-invitation/team-invitation.service';
 
 export interface UpsertTenantInput {
@@ -66,6 +68,7 @@ export class OnboardingService {
     private readonly subscriptionService: SubscriptionService,
     private readonly tenantService: TenantService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly mercadoPagoTokenService: MercadoPagoTokenService,
     private readonly teamInvitationService: TeamInvitationService,
   ) {}
 
@@ -147,12 +150,178 @@ export class OnboardingService {
     return { subscription };
   }
 
-  async createPreference(
+  /**
+   * Consulta el estado de un preapproval en MP y lo combina con la
+   * información local de la suscripción. Usado por /payments/status para polling.
+   *
+   * Autorización: el `userId` debe pertenecer al tenant de la suscripción
+   * asociada al preapproval. Si no, lanza `ForbiddenException`.
+   *
+   * Devuelve además el `onboardingStatus` actual del usuario solicitante
+   * para que el frontend lo use en `updateSession({ onboardingStatus })`
+   * sin tener que volver a llamar a `/users/me`.
+   */
+  async getPreapprovalStatus(userId: string, preapprovalId: string) {
+    // Consultar estado en Mercado Pago
+    const mpStatus = await this.mercadoPagoService.getPreapprovalById(preapprovalId);
+
+    // Buscar la suscripción local por externalSubscriptionId
+    const subscription =
+      await this.subscriptionRepository.findByExternalSubscriptionId(preapprovalId);
+
+    if (!subscription) {
+      throw new NotFoundException(
+        `Suscripción no encontrada para preapproval ${preapprovalId}`,
+      );
+    }
+
+    // Autorización: el user debe pertenecer al tenant de la subscription
+    const user = await this.getUser(userId);
+    if (user.tenantId !== subscription.tenantId) {
+      throw new NotFoundException(
+        `Suscripción no encontrada para preapproval ${preapprovalId}`,
+      );
+      // Devolvemos 404 (no 403) para no filtrar la existencia del recurso
+      // a usuarios no autorizados.
+    }
+
+    return {
+      preapprovalId: mpStatus.id,
+      mpStatus: mpStatus.status,
+      subscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
+      externalReference: mpStatus.externalReference,
+      onboardingStatus: user.onboardingStatus,
+    };
+  }
+
+  /**
+   * Variante pública de `getPreapprovalStatus`, pensada para la página
+   * `/payments/status` (que vive fuera de `(protected)` para que MP pueda
+   * redirigir cross-site sin chocar con el guard de sesión).
+   *
+   * Autorización por **token firmado de un solo uso** en lugar de JWT de
+   * sesión. El token se emite al crear la suscripción y el frontend lo
+   * guarda en `sessionStorage` antes de redirigir al `init_point` de MP.
+   *
+   * Si el token no es válido, está expirado, o no corresponde al
+   * `preapprovalId` de la query, falla con `UnauthorizedException`.
+   */
+  async getPreapprovalStatusPublic(preapprovalId: string, token: string) {
+    const payload = this.mercadoPagoTokenService.verify(token, preapprovalId);
+
+    let subscription =
+      await this.subscriptionRepository.findByExternalSubscriptionId(preapprovalId);
+
+    if (!subscription) {
+      subscription = await this.subscriptionRepository.findByTenantId(
+        payload.tenantId,
+      );
+    }
+
+    if (!subscription) {
+      throw new NotFoundException(
+        `Suscripción no encontrada para preapproval ${preapprovalId}`,
+      );
+    }
+
+    // Auto-vincular si la subscription está en la DB pero todavía no
+    // tiene el externalSubscriptionId (idempotente con el webhook).
+    if (subscription.externalSubscriptionId !== preapprovalId) {
+      subscription.externalSubscriptionId = preapprovalId;
+      await this.subscriptionRepository.save(subscription);
+    }
+
+    // Fallback al webhook: si la suscripción ya está ACTIVE pero el
+    // usuario sigue en paso 2, avanzamos acá (race entre webhooks y
+    // redirect de MP).
+    if (subscription.status === SubscriptionStatus.ACTIVE) {
+      await this.advanceUserAfterPayment(preapprovalId);
+    }
+
+    const users = await this.userRepository.findByTenantId(
+      subscription.tenantId,
+    );
+    const owner =
+      users.find(
+        (u) => u.onboardingStatus === OnboardingStatus.PENDING_STORE_CONFIG,
+      ) ??
+      users.find(
+        (u) => u.onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION,
+      ) ??
+      users[0];
+
+    const onboardingStatus = owner?.onboardingStatus ?? null;
+
+    // El frontend solo debe seguir polling mientras el usuario está en
+    // paso 2 Y la suscripción sigue pendiente de pago.
+    const pollingRequired =
+      subscription.status === SubscriptionStatus.PENDING_PAYMENT &&
+      (onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION ||
+        onboardingStatus === null);
+
+    const paymentApproved =
+      subscription.status === SubscriptionStatus.ACTIVE ||
+      (onboardingStatus !== null &&
+        onboardingStatus !== OnboardingStatus.PENDING_TENANT_CONFIG &&
+        onboardingStatus !== OnboardingStatus.PENDING_PLAN_SELECTION);
+
+    return {
+      preapprovalId,
+      // mpStatus NO consulta MP: es la convención para que el cliente
+      // pueda interpretar el estado. Cuando la subscription pasa a
+      // ACTIVE en DB es porque el webhook validó el pago con MP.
+      mpStatus: this.mapSubscriptionStatusToMpStatus(subscription.status),
+      subscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
+      externalReference: `tenant:${subscription.tenantId}`,
+      onboardingStatus,
+      pollingRequired,
+      paymentApproved,
+    };
+  }
+
+  /**
+   * Convierte el estado interno de la subscription al equivalente que
+   * espera el frontend (`mpStatus`). Como el polling ya no consulta MP,
+   * mapeamos los estados de la DB a los valores terminales que el cliente
+   * sabe interpretar.
+   */
+  private mapSubscriptionStatusToMpStatus(
+    subscriptionStatus: SubscriptionStatus,
+  ): string {
+    switch (subscriptionStatus) {
+      case SubscriptionStatus.ACTIVE:
+        return 'authorized';
+      case SubscriptionStatus.CANCELED:
+        return 'cancelled';
+      case SubscriptionStatus.SUSPENDED:
+        return 'paused';
+      case SubscriptionStatus.PENDING_PAYMENT:
+      default:
+        return 'pending';
+    }
+  }
+
+  /**
+   * Crea una suscripción sin plan asociado (pago pendiente via link de MP).
+   * POST /v1/preapprovals
+   *
+   * Flujo:
+   * 1. Se crea el preapproval en MP con status="pending" y auto_recurring inline
+   * 2. Se devuelve el init_point para que el frontend redirija al usuario a MP
+   * 3. El usuario paga en MP y es redirigido a /payments/status
+   * 4. El webhook recibe la notificación y actualiza la DB
+   *
+   * No se debe confundir con createPreference (checkout-pro, pago único).
+   */
+  async createSubscription(
     userId: string,
     input: CreatePreferenceInput,
   ): Promise<{
-    preferenceId: string;
+    preapprovalId: string;
     initPoint: string;
+    statusToken: string;
     onboardingStatus: OnboardingStatus;
   }> {
     const user = await this.requireStatus(
@@ -161,35 +330,43 @@ export class OnboardingService {
     );
 
     if (!user.tenantId) {
-      throw new BadRequestException('Tenant requerido para crear preference');
+      throw new BadRequestException('Tenant requerido para crear suscripción');
     }
 
     const { planType, billingPeriod } = input;
-    const pricing = PLAN_PRICING[planType];
-    const price =
-      billingPeriod === BillingPeriod.MONTHLY
-        ? pricing.monthly
-        : pricing.yearly;
 
-    const preference = await this.mercadoPagoService.createPreference({
-      title: `Plan ${planType} (${billingPeriod})`,
-      description: `Suscripción ${planType} ${billingPeriod} - Shopify Sync`,
-      price,
-      quantity: 1,
-      externalReference: `tenant:${user.tenantId}:user:${userId}`,
+    // Crear el preapproval en Mercado Pago (suscripción sin plan, pago pendiente)
+    const preapproval = await this.mercadoPagoService.createPreapproval({
+      planType,
+      billingPeriod,
+      payerEmail: user.email,
+      tenantId: user.tenantId,
     });
 
-    // Actualizar la subscription a PENDING_PAYMENT sin avanzar de paso aún
-    // El avance lo hace el webhook al confirmar el pago.
+    // Emitir token firmado corto. El frontend lo guarda en sessionStorage
+    // antes de redirigir al `init_point`. Cuando MP redirige de vuelta al
+    // `back_url` (cross-site), el navegador puede no reenviar la cookie
+    // de sesión de NextAuth. El token acompaña la query string y le
+    // permite al endpoint público validar el request.
+    const statusToken = this.mercadoPagoTokenService.sign({
+      preapprovalId: preapproval.externalSubscriptionId,
+      tenantId: user.tenantId,
+      userId: user.id,
+    });
+
+    // Actualizar la subscription local a PENDING_PAYMENT y guardar el preapproval ID.
+    // El avance real al siguiente paso lo hace el webhook al confirmar el pago.
     await this.subscriptionService.upgradePlan(
       user.tenantId,
       planType,
       billingPeriod,
+      preapproval.externalSubscriptionId,
     );
 
     return {
-      preferenceId: preference.preferenceId,
-      initPoint: preference.initPoint,
+      preapprovalId: preapproval.externalSubscriptionId,
+      initPoint: preapproval.initPoint,
+      statusToken,
       onboardingStatus: user.onboardingStatus,
     };
   }
@@ -243,12 +420,12 @@ export class OnboardingService {
       );
 
     if (!subscription) {
-      // La subscription puede no estar creada aún si es la primera
-      // notificación. No es un error.
       return null;
     }
 
-    const users = await this.userRepository.findByTenantId(subscription.tenantId);
+    const users = await this.userRepository.findByTenantId(
+      subscription.tenantId,
+    );
     if (users.length === 0) {
       return null;
     }

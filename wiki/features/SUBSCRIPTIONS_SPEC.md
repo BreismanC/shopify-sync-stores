@@ -188,17 +188,41 @@ apps/backend/src/infrastructure/
 
 ## 4. Integración con MercadoPago
 
-### 4.1 Flujo de Alto Nivel
+### 4.1 Flujo de Alto Nivel (Link de Pago — Sin Plan)
 
 ```
-1. Usuario selecciona plan → POST /api/subscriptions/preference
-2. Backend crea preference en MP → devuelve initPoint
-3. Frontend redirige a MercadoPago (initPoint)
-4. Usuario paga en MP → MP redirect a /subscription/success
-5. MP envía webhook (IPN) → POST /api/webhooks/mercadopago
-6. Backend actualiza Subscription (externalSubscriptionId, status=ACTIVE)
-7. Backend programa próximo cobro (cron)
+1. Usuario en Step 2 del onboarding → POST /api/onboarding/preference
+2. Backend crea preapproval en MP (sin preapproval_plan_id) → devuelve initPoint
+3. Frontend redirige a /payments/status?preapproval_id=X&token=<firma>
+4. MP muestra checkout → usuario paga → MP redirige a back_url (/payments/status)
+5. Frontend hace polling cada 2s a GET /api/onboarding/public/preapproval-status
+   (endpoint público protegido por un token firmado, no requiere JWT de NextAuth)
+6. Webhook MP recibe "subscription_preapproval" → status "authorized" o "active"
+   → Backend busca tenant por external_reference (tenant:<id>)
+   → Persiste externalSubscriptionId en la suscripción
+   → Avanza onboardingStatus del tenant
+7. Polling recibe paymentApproved=true → muestra "Pago aprobado" + botón "Continuar"
+8. Usuario presiona "Continuar" → el frontend actualiza sesión (NextAuth) y
+   navega a /onboarding?step=3
 ```
+
+#### 4.1.1 Endpoint público de polling
+
+La página `/payments/status` es accesible sin sesión activa (el usuario acaba
+de salir de MP). Para poder consultar el estado del preapproval sin JWT:
+
+- `MercadoPagoTokenService` firma un token de corta duración con
+  `{ preapprovalId, tenantId, iat, exp }` usando `AUTH_SECRET`.
+- El backend (`OnboardingPublicController`) valida el token y, si la firma
+  caduca o no coincide, responde `401`.
+- El polling se detiene cuando el backend devuelve `pollingRequired: false`.
+
+#### 4.1.2 Resiliencia ante el webhook retrasado
+
+`OnboardingService.getPreapprovalStatusPublic()` aplica una salvaguarda: si la
+suscripción figura `ACTIVE` en MP pero el `onboardingStatus` del usuario sigue
+en `PENDING_PLAN_SELECTION`, lo promueve automáticamente. Esto evita
+redirigir al usuario a step 2 cuando el webhook aún no impactó la DB local.
 
 ### 4.2 Integración via REST API
 
@@ -218,25 +242,40 @@ apps/backend/src/infrastructure/
 - Actualizar suscripción: `PUT /v1/preapproval/{id}`
 - Cancelar suscripción: `PUT /v1/preapproval/{id}` (status: cancelled)
 
-### 4.3 Flujo de Card Tokenization
+### 4.3 Flujo Implementado: Link de Pago (Sin Plan, Sin Card Token)
 
-El frontend genera el `card_token` usando el SDK frontend de MercadoPago. El backend solo recibe el `card_token_id` listo para enviar a MP:
+Este es el flujo actualmente implementado. No usa `card_token_id` ni el SDK frontend de MP:
 
 ```
-1. Frontend: MercadoPago SDK → generates card_token
-2. Frontend → POST /api/subscriptions/create-preapproval { card_token_id, planType, billingPeriod }
-3. Backend → POST /v1/preapproval a MP con card_token_id
-4. MP procesa el primer cobro + guarda payment_method para recurring
-5. Backend almacena payment_method_id para uso futuro
+1. Frontend → POST /api/onboarding/preference { planType, billingPeriod, payerEmail }
+2. Backend → POST /v1/preapproval a MP (sin preapproval_plan_id, status: pending)
+   Body incluye: back_url, external_reference="tenant:<tenantId>", auto_recurring
+3. Backend responde { preapprovalId, initPoint }
+4. Frontend → redirige a /payments/status?preapproval_id=<id>
+5. MP muestra checkout → usuario paga → MP redirige a back_url (/payments/status)
+6. Frontend polling → GET /api/onboarding/subscription/preapproval/:id
+7. Webhook MP → "subscription_preapproval" → status authorized/active
+   → Persiste externalSubscriptionId, avanza onboarding
+8. Polling detecta éxito → redirect a dashboard
 ```
 
-### 4.4 Variables de Entorno
+### 4.4 Variables de Entorno (resumen)
+
+Ver `wiki/api/environment-variables.md` y `wiki/frontend/environment-variables.md`
+para el detalle completo. Resumen relevante al módulo de suscripciones:
 
 ```env
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-...        # Token de producción
-MERCADOPAGO_PUBLIC_KEY=APP_PUBLIC_KEY...      # Para SDK frontend
-MERCADOPAGO_SANDBOX=true                      # Modo sandbox (true/false)
-MERCADOPAGO_WEBHOOK_SECRET=                   # Para verificar firmas IPN
+# Backend
+MERCADOPAGO_ACCESS_TOKEN=***      # Token MP (sandbox o producción)
+MERCADOPAGO_PUBLIC_KEY=           # Public key (no usada en flujo link de pago)
+MERCADOPAGO_NOTIFICATION_URL=     # URL pública del webhook (tunnel/ngrok en dev)
+MERCADOPAGO_SANDBOX=true          # true = sandbox, false = producción
+MERCADOPAGO_CURRENCY=COP          # Moneda de la cuenta MP
+AUTH_SECRET=***                   # Firma el token público del polling
+FRONTEND_URL=http://localhost:3000
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:3001   # Única URL del backend
 ```
 
 ---
@@ -312,27 +351,27 @@ MERCADOPAGO_WEBHOOK_SECRET=                   # Para verificar firmas IPN
 
 ### 6.1 Endpoints de Suscripción
 
-| Método | Ruta                              | Descripción |
-|--------|-----------------------------------|-------------|
-| GET    | `/api/subscriptions/current`      | Obtener suscripción activa del tenant |
-| POST   | `/api/subscriptions/plans`         | Listar planes disponibles |
-| POST   | `/api/subscriptions/create-preference` | Crear preference de pago MP |
-| POST   | `/api/subscriptions/create-preapproval` | Crear suscripción (card_token) |
-| GET    | `/api/subscriptions/status`        | Estado de la suscripción actual |
-| PUT    | `/api/subscriptions/upgrade`       | Cambiar a plan superior |
-| POST   | `/api/subscriptions/cancel`        | Cancelar suscripción |
-| POST   | `/api/subscriptions/reactivate`    | Reactivar suscripción suspendida |
+|| Método | Ruta                              | Descripción | Auth |
+|--------|-----------------------------------|-------------|------|
+| GET    | `/api/subscriptions/current`      | Obtener suscripción activa del tenant | JWT |
+| POST   | `/api/subscriptions/plans`         | Listar planes disponibles | JWT |
+| POST   | `/api/onboarding/preference`       | Crear link de pago (preapproval) | JWT |
+| GET    | `/api/onboarding/subscription/preapproval/:preapprovalId` | Consultar estado del preapproval (polling) | JWT |
+| GET    | `/api/subscriptions/status`        | Estado de la suscripción actual | JWT |
+| PUT    | `/api/subscriptions/upgrade`       | Cambiar a plan superior (guarda externalSubscriptionId) | JWT |
+| POST   | `/api/subscriptions/cancel`        | Cancelar suscripción | JWT |
+| POST   | `/api/subscriptions/reactivate`    | Reactivar suscripción suspendida | JWT |
+| POST   | `/api/webhooks/mercadopago`        | Webhook IPN de MP (subscription_preapproval) | NONE |
 
-### 6.2 Endpoint: Crear Preapproval (Suscripción)
+### 6.2 Endpoint: Crear Preapproval (Link de Pago — Implementado)
 
-**Ruta:** `POST /api/subscriptions/create-preapproval`
+**Ruta:** `POST /api/onboarding/preference`
 
 **Request Body:**
 ```typescript
 {
   planType: 'BASIC' | 'PRO' | 'ENTERPRISE';
   billingPeriod: 'MONTHLY' | 'YEARLY';
-  cardTokenId: string;         // Generado por SDK frontend de MP
   payerEmail: string;
 }
 ```
@@ -340,54 +379,38 @@ MERCADOPAGO_WEBHOOK_SECRET=                   # Para verificar firmas IPN
 **Respuesta:**
 ```typescript
 {
-  externalSubscriptionId: string;  // preapproval id de MP
-  initPoint: string;              // URL para pagar en MP
-  status: 'PENDING_PAYMENT';
+  preapprovalId: string;   // ID del preapproval en MP
+  initPoint: string;       // URL de pago de MP (sandbox o producción)
+  status: 'pending';
 }
 ```
 
-### 6.3 Endpoint: Webhook de MercadoPago
+### 6.3 Endpoint: Polling de Estado
+
+**Ruta:** `GET /api/onboarding/subscription/preapproval/:preapprovalId`
+
+**Respuesta:**
+```typescript
+{
+  status: 'pending' | 'authorized' | 'active' | 'cancelled' | 'paused' | 'expired';
+  preapprovalId: string;
+  planType: string;
+}
+```
+
+### 6.4 Endpoint: Webhook de MercadoPago
 
 **Ruta:** `POST /api/webhooks/mercadopago`
 
-**Headers:**
-```
-x-mp-signature: <firma SHA256 del body>
-```
+**Topic procesado:** `subscription_preapproval`
 
-**Eventos a procesar:**
+**Eventos que disparan éxito:**
+- `authorized` → pago aprobado, activa suscripción
+- `active` → suscripción activa
 
-| topic | action | Descripción |
-|-------|--------|-------------|
-| preapproval | created | Suscripción creada |
-| preapproval | activated | Pago inicial exitoso → activar |
-| preapproval | updated | Renovación exitosa |
-| preapproval | cancelled | Usuario canceló |
-| preapproval | overdue | Pago vencido |
-| payment | success | Cobro exitoso |
-| payment | failure | Cobro fallido |
+**Vinculación:** `external_reference` con formato `tenant:<tenantId>` permite recuperar el contexto si el `externalSubscriptionId` aún no está persistido.
 
-**Lógica del webhook:**
-```typescript
-// Pseudocódigo
-async handleMercadoPagoWebhook(topic: string, action: string, data: any) {
-  const signature = req.headers['x-mp-signature'];
-  if (!verifySignature(signature, body)) {
-    throw new UnauthorizedException('Invalid signature');
-  }
-
-  switch (topic) {
-    case 'preapproval':
-      await this.handlePreapprovalEvent(action, data);
-      break;
-    case 'payment':
-      await this.handlePaymentEvent(action, data);
-      break;
-  }
-}
-```
-
-### 6.4 Endpoint: Cancelar Suscripción
+### 6.5 Endpoint: Cancelar Suscripción
 
 **Ruta:** `POST /api/subscriptions/cancel`
 

@@ -9,6 +9,7 @@ import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import { forgotPasswordSchema } from "@/schemas/auth";
 import { validateFormData } from "@/utils/web-validation";
 import { Card } from "@/components/ui/Card";
+import { BACKEND_URL } from "@/lib/env";
 
 export default function PasswordRecoveryRequest() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function PasswordRecoveryRequest() {
     
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/forgot-password`,
+        `${BACKEND_URL}/api/auth/forgot-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

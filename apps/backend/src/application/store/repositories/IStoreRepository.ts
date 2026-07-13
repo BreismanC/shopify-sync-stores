@@ -5,4 +5,14 @@ export abstract class IStoreRepository {
   abstract findByTenantId(tenantId: string): Promise<Store[]>;
   abstract save(store: Store): Promise<Store>;
   abstract create(store: Partial<Store>): Store;
+  abstract findByTenantIdPaginated(
+    tenantId: string,
+    options: {
+      search?: string;
+      page: number;
+      perPage: number;
+      sortBy: 'shopifyShopId' | 'role' | 'createdAt';
+      order: 'asc' | 'desc';
+    },
+  ): Promise<{ data: Store[]; total: number }>;
 }

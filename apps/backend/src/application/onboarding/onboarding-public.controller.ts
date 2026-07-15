@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  BadRequestException,
-} from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 
 /**
@@ -19,9 +14,7 @@ import { OnboardingService } from './onboarding.service';
  */
 @Controller('onboarding/public')
 export class OnboardingPublicController {
-  constructor(
-    private readonly onboardingService: OnboardingService,
-  ) {}
+  constructor(private readonly onboardingService: OnboardingService) {}
 
   /**
    * GET /api/onboarding/public/preapproval-status

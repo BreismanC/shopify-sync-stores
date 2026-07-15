@@ -15,7 +15,10 @@ import { ITeamMemberRepository } from '../team-member/repositories/ITeamMemberRe
 import { ISubscriptionRepository } from '../subscription/repositories/ISubscriptionRepository';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { TenantService } from '../tenant/tenant.service';
-import { OnboardingStatus, ONBOARDING_STATUS_TO_STEP } from '../../domain/enums/onboarding-status.enum';
+import {
+  OnboardingStatus,
+  ONBOARDING_STATUS_TO_STEP,
+} from '../../domain/enums/onboarding-status.enum';
 import { StoreRole } from '../../domain/enums/store-role.enum';
 import { Tenant } from '../../domain/entities/tenant.entity';
 import { Store } from '../../domain/entities/store.entity';
@@ -163,11 +166,14 @@ export class OnboardingService {
    */
   async getPreapprovalStatus(userId: string, preapprovalId: string) {
     // Consultar estado en Mercado Pago
-    const mpStatus = await this.mercadoPagoService.getPreapprovalById(preapprovalId);
+    const mpStatus =
+      await this.mercadoPagoService.getPreapprovalById(preapprovalId);
 
     // Buscar la suscripción local por externalSubscriptionId
     const subscription =
-      await this.subscriptionRepository.findByExternalSubscriptionId(preapprovalId);
+      await this.subscriptionRepository.findByExternalSubscriptionId(
+        preapprovalId,
+      );
 
     if (!subscription) {
       throw new NotFoundException(
@@ -211,7 +217,9 @@ export class OnboardingService {
     const payload = this.mercadoPagoTokenService.verify(token, preapprovalId);
 
     let subscription =
-      await this.subscriptionRepository.findByExternalSubscriptionId(preapprovalId);
+      await this.subscriptionRepository.findByExternalSubscriptionId(
+        preapprovalId,
+      );
 
     if (!subscription) {
       subscription = await this.subscriptionRepository.findByTenantId(
@@ -564,7 +572,9 @@ export class OnboardingService {
   async inviteTeamMember(
     userId: string,
     input: InviteTeamMemberInput,
-  ): Promise<{ member: import('../../domain/entities/team_member.entity').TeamInvitation }> {
+  ): Promise<{
+    member: import('../../domain/entities/team_member.entity').TeamInvitation;
+  }> {
     const user = await this.requireStatus(
       userId,
       OnboardingStatus.PENDING_TEAM_CONFIG,

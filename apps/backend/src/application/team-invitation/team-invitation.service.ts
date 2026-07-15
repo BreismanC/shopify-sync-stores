@@ -12,10 +12,16 @@ import {
   ITEAM_INVITATION_REPOSITORY,
   ITeamInvitationRepository,
 } from './repositories/ITeamInvitationRepository';
-import { IUSER_REPOSITORY, IUserRepository } from '../auth/repositories/IUserRepository';
+import {
+  IUSER_REPOSITORY,
+  IUserRepository,
+} from '../auth/repositories/IUserRepository';
 import { ITenantRepository } from '../tenant/repositories/ITenantRepository';
 import { ITeamMemberRepository } from '../team-member/repositories/ITeamMemberRepository';
-import { TeamInvitation, InvitationStatus } from '../../domain/entities/team_member.entity';
+import {
+  TeamInvitation,
+  InvitationStatus,
+} from '../../domain/entities/team_member.entity';
 import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
 import { UserRole } from '../../domain/enums/user-role.enum';
 import { EmailService } from '../../infrastructure/services/email/resend.service';
@@ -44,8 +50,7 @@ export class TeamInvitationService {
     private readonly configService: ConfigService,
   ) {
     this.frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
-      'http://localhost:3000';
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
   }
 
   /**
@@ -171,7 +176,9 @@ export class TeamInvitationService {
     }
 
     if (!password || password.length < 6) {
-      throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
+      throw new BadRequestException(
+        'La contraseña debe tener al menos 6 caracteres',
+      );
     }
 
     // Buscar o crear el User
@@ -207,7 +214,10 @@ export class TeamInvitationService {
       invitation.acceptedById = user.id;
       invitation.acceptedAt = new Date();
       await this.invitationRepository.save(invitation);
-      return { user: { id: user.id, email: user.email }, tenantId: invitation.tenantId };
+      return {
+        user: { id: user.id, email: user.email },
+        tenantId: invitation.tenantId,
+      };
     }
 
     // Crear TeamMember
@@ -224,7 +234,10 @@ export class TeamInvitationService {
     invitation.acceptedAt = new Date();
     await this.invitationRepository.save(invitation);
 
-    return { user: { id: user.id, email: user.email }, tenantId: invitation.tenantId };
+    return {
+      user: { id: user.id, email: user.email },
+      tenantId: invitation.tenantId,
+    };
   }
 
   /**
@@ -281,7 +294,9 @@ export class TeamInvitationService {
       throw new NotFoundException('Invitación no encontrada');
     }
     if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException('Solo se pueden revocar invitaciones pendientes');
+      throw new BadRequestException(
+        'Solo se pueden revocar invitaciones pendientes',
+      );
     }
     invitation.status = InvitationStatus.REVOKED;
     await this.invitationRepository.save(invitation);

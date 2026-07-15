@@ -1,2 +1,3 @@
 export { default } from './password-reset';
 export { default as TeamInvitationEmail } from './team-invitation';
+export { default as StoreConnectionKeyEmail } from './store-connection-key';

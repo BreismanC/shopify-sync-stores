@@ -1,12 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import {
-  Payment,
-  Preference,
-  PreApproval,
-  PreApprovalPlan,
-} from 'mercadopago';
+import { Payment, Preference, PreApproval, PreApprovalPlan } from 'mercadopago';
 import {
   MercadoPagoService,
   MERCADOPAGO_PAYMENT_CLIENT,

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -9,8 +9,8 @@ import {
   getFilteredRowModel,
   useReactTable,
   SortingState,
-} from "@tanstack/react-table";
-import { Search, Plus, ChevronDown } from "lucide-react";
+} from '@tanstack/react-table';
+import { Search, Plus, ChevronDown } from 'lucide-react';
 
 import {
   Table,
@@ -20,53 +20,59 @@ import {
   TableHeader,
   TableRow,
   ResponsiveTableCard,
-} from "@/components/ui/Table";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+} from '@/components/ui/Table';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import {
   Empty,
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
   EmptyMedia,
-} from "@/components/ui/Empty";
-import { Skeleton } from "@/components/ui/Skeleton";
+} from '@/components/ui/Empty';
+import { Skeleton } from '@/components/ui/Skeleton';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from "@/components/ui/DropdownMenu";
+} from '@/components/ui/DropdownMenu';
 
-import ConnectStoreButton from "./ConnectStoreButton";
-import type { Store } from "@/app/(protected)/stores/stores-client";
-import type { PaginationMeta } from "./types";
-import { getStoresColumns } from "./Columns";
-import { ServerPaginationControls } from "./ServerPaginationControls";
+import ConnectStoreDialog from './ConnectStoreDialog';
+import { DisconnectConfirmDialog } from './DisconnectConfirmDialog';
+import type { ConnectionRow, PaginationMeta } from './types';
+import type { CurrentStore } from '@/lib/store/current';
+import { useSession } from 'next-auth/react';
+import { apiFetch } from '@/lib/auth/fetch-with-auth';
+import { BACKEND_URL } from '@/lib/env';
+import { toast } from 'sonner';
+import { getStoreName, getStoresColumns } from './Columns';
 
 interface DataTableProps {
-  stores: Store[];
+  stores: ConnectionRow[];
   pagination: PaginationMeta;
   isLoading: boolean;
   search: string;
   sortBy: string;
-  order: "asc" | "desc";
+  order: 'asc' | 'desc';
+  currentStore: CurrentStore | null;
   onSearchChange: (v: string) => void;
-  onSortChange: (sortBy: string, order: "asc" | "desc") => void;
+  onSortChange: (sortBy: string, order: 'asc' | 'desc') => void;
   onPageChange: (page: number) => void;
+  onRefetch: () => void;
 }
 
 type SortKey =
-  | "createdAt:desc"
-  | "createdAt:asc"
-  | "shopifyShopId:asc"
-  | "shopifyShopId:desc";
+  | 'connectedAt:desc'
+  | 'connectedAt:asc'
+  | 'shopifyShopId:asc'
+  | 'shopifyShopId:desc';
 
 const SORT_OPTIONS: { label: string; value: SortKey }[] = [
-  { label: "Más recientes", value: "createdAt:desc" },
-  { label: "Más antiguos", value: "createdAt:asc" },
-  { label: "A → Z", value: "shopifyShopId:asc" },
-  { label: "Z → A", value: "shopifyShopId:desc" },
+  { label: 'Más recientes', value: 'connectedAt:desc' },
+  { label: 'Más antiguos', value: 'connectedAt:asc' },
+  { label: 'A → Z', value: 'shopifyShopId:asc' },
+  { label: 'Z → A', value: 'shopifyShopId:desc' },
 ];
 
 export default function DataTable({
@@ -76,16 +82,70 @@ export default function DataTable({
   search,
   sortBy,
   order,
+  currentStore,
   onSearchChange,
   onSortChange,
   onPageChange,
+  onRefetch,
 }: DataTableProps) {
-  const columns = useMemo<ColumnDef<Store>[]>(() => getStoresColumns(), []);
+  const { data: session } = useSession();
+  const accessToken = session?.accessToken;
 
-  // TanStack Table state — sorting + global filter (debounced manually)
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [pendingDisconnect, setPendingDisconnect] =
+    useState<ConnectionRow | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  const handleViewProducts = (row: ConnectionRow) => {
+    void row;
+    toast.info('Próximamente: vista de productos');
+  };
+
+  const requestDisconnect = (row: ConnectionRow) => {
+    setPendingDisconnect(row);
+  };
+
+  const closeDisconnect = () => {
+    if (isDisconnecting) return;
+    setPendingDisconnect(null);
+  };
+
+  const confirmDisconnect = async () => {
+    if (!pendingDisconnect || !accessToken) return;
+    setIsDisconnecting(true);
+    try {
+      await apiFetch(
+        `${BACKEND_URL}/api/stores/connections/${pendingDisconnect.id}`,
+        { method: 'DELETE' },
+        accessToken,
+      );
+      toast.success('Tienda desconectada');
+      setPendingDisconnect(null);
+      onRefetch();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo desconectar la tienda';
+      toast.error(message);
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
+  const columns = useMemo<ColumnDef<ConnectionRow>[]>(
+    () =>
+      getStoresColumns({
+        onViewProducts: handleViewProducts,
+        onDisconnect: requestDisconnect,
+        currentStore,
+      }),
+    [currentStore],
+  );
+
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [debouncedGlobalFilter, setDebouncedGlobalFilter] = useState("");
+  const [globalFilter, setGlobalFilter] = useState('');
+  const [debouncedGlobalFilter, setDebouncedGlobalFilter] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedGlobalFilter(globalFilter), 300);
@@ -110,29 +170,43 @@ export default function DataTable({
   const currentSortLabel = useMemo(
     () =>
       SORT_OPTIONS.find((o) => o.value === currentSort)?.label ??
-      "Más recientes",
-    [currentSort]
+      'Más recientes',
+    [currentSort],
+  );
+
+  const emptyState = (
+    <Empty>
+      <EmptyMedia>
+        <Plus className="size-5 text-gray-9" />
+      </EmptyMedia>
+      <EmptyHeader>
+        <EmptyTitle>No hay tiendas conectadas</EmptyTitle>
+        <EmptyDescription>
+          Podés invitar al {currentStore?.role === 'VENDOR' ? 'Source' : 'Vendor'} por
+          correo o pegar la clave que te compartieron para crear la
+          conexión.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-gray-12">Tiendas</h2>
           <p className="text-gray-11 mt-1">
-            Conecta y administra tus tiendas Shopify sincronizadas.
+            Conectá y administrá las tiendas Shopify vinculadas a tu tienda.
           </p>
           <a
             href="#"
-            className="text-primary hover:underline text-sm mt-1 inline-block"
+            className="text-accent-9 hover:underline text-sm mt-1 inline-block"
           >
-            Aprende sobre conectar tiendas
+            Aprendé sobre conectar tiendas
           </a>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-gray-9" />
             <Input
@@ -143,7 +217,6 @@ export default function DataTable({
             />
           </div>
 
-          {/* Sort dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button mode="pill" size="sm">
@@ -156,9 +229,9 @@ export default function DataTable({
                 <DropdownMenuItem
                   key={opt.value}
                   onSelect={() => {
-                    const [sb, od] = opt.value.split(":") as [
+                    const [sb, od] = opt.value.split(':') as [
                       string,
-                      "asc" | "desc"
+                      'asc' | 'desc',
                     ];
                     onSortChange(sb, od);
                   }}
@@ -169,11 +242,17 @@ export default function DataTable({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <ConnectStoreButton />
+          <Button
+            onClick={() => setConnectOpen(true)}
+            className="bg-accent-9 hover:bg-accent-10 text-accent-contrast"
+            aria-label="Conectar tienda"
+          >
+            <Plus className="size-3.5" />
+            <span>Conectar tienda</span>
+          </Button>
         </div>
       </div>
 
-      {/* Table */}
       <div className="border border-gray-a6 rounded-md overflow-hidden">
         <Table>
           <TableHeader>
@@ -185,7 +264,7 @@ export default function DataTable({
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -206,34 +285,23 @@ export default function DataTable({
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length}>
-                  <Empty>
-                    <EmptyMedia>
-                      <Plus className="size-5 text-gray-9" />
-                    </EmptyMedia>
-                    <EmptyHeader>
-                      <EmptyTitle>No hay tiendas conectadas</EmptyTitle>
-                      <EmptyDescription>
-                        Conecta tu primera tienda Shopify haciendo clic en
-                        &apos;Connect new store&apos;.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                </TableCell>
+                <TableCell colSpan={columns.length}>{emptyState}</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Responsive mobile cards */}
       <ResponsiveTableCard
         headers={
           table
@@ -243,7 +311,7 @@ export default function DataTable({
               id: header.id,
               header: flexRender(
                 header.column.columnDef.header,
-                header.getContext()
+                header.getContext(),
               ),
             })) || []
         }
@@ -251,31 +319,35 @@ export default function DataTable({
           id: row.id,
           cells: row.getVisibleCells().map((cell) => ({
             id: cell.id,
-            content: flexRender(cell.column.columnDef.cell, cell.getContext()),
+            content: flexRender(
+              cell.column.columnDef.cell,
+              cell.getContext(),
+            ),
           })),
         }))}
         isLoading={isLoading}
-        emptyState={
-          <Empty>
-            <EmptyMedia>
-              <Plus className="size-5 text-gray-9" />
-            </EmptyMedia>
-            <EmptyHeader>
-              <EmptyTitle>No hay tiendas conectadas</EmptyTitle>
-              <EmptyDescription>
-                Conecta tu primera tienda Shopify haciendo clic en
-                &apos;Connect new store&apos;.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        }
+        emptyState={emptyState}
       />
 
-      {/* Pagination */}
-      <ServerPaginationControls
-        pagination={pagination}
-        currentPage={pagination.page}
-        onPageChange={onPageChange}
+      <ConnectStoreDialog
+        open={connectOpen}
+        onOpenChange={setConnectOpen}
+        currentStore={currentStore}
+        onConnected={onRefetch}
+      />
+
+      <DisconnectConfirmDialog
+        open={Boolean(pendingDisconnect)}
+        onOpenChange={(open: boolean) => {
+          if (!open) closeDisconnect();
+        }}
+        storeLabel={
+          pendingDisconnect
+            ? getStoreName(pendingDisconnect.shopifyShopId)
+            : ''
+        }
+        isPending={isDisconnecting}
+        onConfirm={confirmDisconnect}
       />
     </div>
   );

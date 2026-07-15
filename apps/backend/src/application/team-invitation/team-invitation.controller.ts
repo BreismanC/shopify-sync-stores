@@ -14,7 +14,10 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TeamInvitationService } from './team-invitation.service';
 import { InviteTeamMemberDto } from '../onboarding/dtos/invite-team-member.dto';
-import { UpdateTeamMemberDto, DeleteTeamMemberParamsDto } from '../onboarding/dtos/team-member.dto';
+import {
+  UpdateTeamMemberDto,
+  DeleteTeamMemberParamsDto,
+} from '../onboarding/dtos/team-member.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 
 interface RequestWithUser extends Request {
@@ -33,9 +36,7 @@ interface RequestWithUser extends Request {
  */
 @Controller()
 export class TeamInvitationController {
-  constructor(
-    private readonly teamInvitationService: TeamInvitationService,
-  ) {}
+  constructor(private readonly teamInvitationService: TeamInvitationService) {}
 
   // ─── Rutas autenticadas (owner/inviter) ─────────────────────────────────
 
@@ -48,10 +49,7 @@ export class TeamInvitationController {
   @Post('onboarding/team/invite')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  async invite(
-    @Req() req: RequestWithUser,
-    @Body() body: InviteTeamMemberDto,
-  ) {
+  async invite(@Req() req: RequestWithUser, @Body() body: InviteTeamMemberDto) {
     return this.teamInvitationService.createAndSend(
       req.user.tenantId!,
       req.user.id,

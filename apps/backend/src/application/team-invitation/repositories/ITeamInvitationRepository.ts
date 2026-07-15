@@ -1,4 +1,7 @@
-import { TeamInvitation, InvitationStatus } from '../../../domain/entities/team_member.entity';
+import {
+  TeamInvitation,
+  InvitationStatus,
+} from '../../../domain/entities/team_member.entity';
 
 export const ITEAM_INVITATION_REPOSITORY = 'ITEAM_INVITATION_REPOSITORY';
 

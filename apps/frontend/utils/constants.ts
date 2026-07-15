@@ -20,7 +20,7 @@ export const DASHBOARD_ROUTES: MenuItem[] = [
   },
   {
     title: "Tiendas",
-    url: "/dashboard/stores",
+    url: "/stores",
     icon: Store,
     roles: ["OWNER", "ADMIN", "MEMBER"],
   },

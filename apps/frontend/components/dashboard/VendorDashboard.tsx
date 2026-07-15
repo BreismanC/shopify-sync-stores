@@ -1,29 +1,34 @@
-import type { CurrentStore } from "@/lib/store/current";
+import type { CurrentStore } from '@/lib/store/current';
 import {
   AccountCard,
   FeedbackCard,
   GuidesCard,
   type DashboardLink,
-} from "@/components/dashboard/DashboardCards";
-import { StoreKeyCard } from "@/components/dashboard/StoreKeyCard";
-import { WhatsNewCard } from "@/components/dashboard/WhatsNewCard";
+} from '@/components/dashboard/DashboardCards';
+import { StoreKeyCard } from '@/components/dashboard/StoreKeyCard';
+import { WhatsNewCard } from '@/components/dashboard/WhatsNewCard';
 
 interface VendorDashboardProps {
   store: CurrentStore;
 }
 
 const guides: DashboardLink[] = [
-  { label: "Guía de inicio rápido", href: "/dashboard/help/quick-start" },
-  { label: "Conectar una tienda", href: "/dashboard/help/connect-store" },
-  { label: "Sincronizar productos", href: "/dashboard/help/sync-products" },
+  { label: 'Guía de inicio rápido', href: '/dashboard/help/quick-start' },
+  { label: 'Conectar una tienda', href: '/dashboard/help/connect-store' },
+  { label: 'Sincronizar productos', href: '/dashboard/help/sync-products' },
   {
-    label: "Buenas prácticas y sincronización saludable",
-    href: "/dashboard/help/best-practices",
+    label: 'Buenas prácticas y sincronización saludable',
+    href: '/dashboard/help/best-practices',
   },
 ];
 
+function resolveStoreKey(store: CurrentStore): string {
+  if (store.storeKey && store.storeKey.length > 0) return store.storeKey;
+  return store.id.replaceAll('-', '').slice(0, 13);
+}
+
 export function VendorDashboard({ store }: VendorDashboardProps) {
-  const storeKey = store.id.replaceAll("-", "").slice(0, 13);
+  const storeKey = resolveStoreKey(store);
 
   return (
     <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">

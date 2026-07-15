@@ -6,45 +6,45 @@ import {
   Query,
   Req,
   UseGuards,
+  Post,
+  Body,
+  Delete,
+  Param,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IStoreRepository } from './repositories/IStoreRepository';
 import { ListStoresDto } from './dtos/list-stores.dto';
+import { StoreConnectionService } from './store-connection.service';
+import {
+  ConnectByStoreKeyDto,
+  SendStoreKeyEmailDto,
+} from './dtos/connect-by-store-key.dto';
+import { User } from '../../domain/entities/user.entity';
 
 interface RequestWithUser extends Request {
-  user: {
-    id: string;
-    tenantId?: string | null;
-    [key: string]: any;
-  };
+  user: User;
 }
 
-/**
- * Endpoints del dashboard para acceder a la tienda del tenant actual.
- *
- * - GET /api/stores/me: devuelve la tienda activa del tenant del usuario.
- *   Si el tenant no tiene tienda, responde **404** para que el frontend
- *   redirija al usuario a /unauthorized?reason=store-not-found.
- *
- * - GET /api/stores: lista paginada server-side de las tiendas conectadas
- *   del tenant autenticado, con búsqueda y ordenamiento.
- *
- * Diferencia con GET /api/onboarding/store/status (que devuelve
- * `{ store: null }`): este endpoint está pensado para rutas donde
- * la tienda YA DEBE existir (dashboard, products, etc.), no durante
- * el onboarding.
- */
+function pickSafeStore(store: any) {
+  if (!store) return store;
+  const { accessToken, ...safe } = store;
+  return safe;
+}
+
 @Controller('stores')
 @UseGuards(JwtAuthGuard)
 export class StoreController {
   constructor(
     @Inject(IStoreRepository)
     private readonly storeRepository: IStoreRepository,
+    private readonly connectionService: StoreConnectionService,
   ) {}
 
   @Get('me')
   async getMyStore(@Req() req: RequestWithUser) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.user?.tenantId;
     if (!tenantId) {
       throw new NotFoundException({
         code: 'STORE_NOT_FOUND',
@@ -61,15 +61,12 @@ export class StoreController {
       });
     }
 
-    return { store };
+    return { store: pickSafeStore(store) };
   }
 
   @Get()
-  async listStores(
-    @Req() req: RequestWithUser,
-    @Query() query: ListStoresDto,
-  ) {
-    const tenantId = req.user.tenantId;
+  async listStores(@Req() req: RequestWithUser, @Query() query: ListStoresDto) {
+    const tenantId = req.user?.tenantId;
     if (!tenantId) {
       throw new NotFoundException({
         code: 'TENANT_NOT_FOUND',
@@ -93,10 +90,10 @@ export class StoreController {
       },
     );
 
-    const totalPages = Math.ceil(total / perPage);
+    const totalPages = Math.ceil(total / perPage) || 1;
 
     return {
-      data,
+      data: data.map((s) => pickSafeStore(s)),
       pagination: {
         total,
         page,
@@ -105,5 +102,59 @@ export class StoreController {
         totalPages,
       },
     };
+  }
+
+  @Get('connections')
+  async listConnections(
+    @Req() req: RequestWithUser,
+    @Query() query: ListStoresDto,
+  ) {
+    const page = query.page ?? 1;
+    const perPage = query.perPage ?? 10;
+    const sortBy =
+      (query.sortBy as 'connectedAt' | 'isActive') ?? 'connectedAt';
+    const order = query.order ?? 'desc';
+
+    return this.connectionService.listConnections(req.user?.tenantId, {
+      search: query.search,
+      page,
+      perPage,
+      sortBy,
+      order,
+    });
+  }
+
+  @Post('connections')
+  @HttpCode(HttpStatus.CREATED)
+  async connect(
+    @Req() req: RequestWithUser,
+    @Body() body: ConnectByStoreKeyDto,
+  ) {
+    const result = await this.connectionService.connectByStoreKey(
+      req.user,
+      body.storeKey,
+    );
+    return {
+      connection: result.connection,
+      store: result.store,
+    };
+  }
+
+  @Post('connections/email')
+  @HttpCode(HttpStatus.OK)
+  async sendKey(
+    @Req() req: RequestWithUser,
+    @Body() body: SendStoreKeyEmailDto,
+  ) {
+    return this.connectionService.sendStoreKeyByEmail(req.user, body.email);
+  }
+
+  @Delete('connections/:connectionId')
+  @HttpCode(HttpStatus.OK)
+  async disconnect(
+    @Req() req: RequestWithUser,
+    @Param('connectionId') connectionId: string,
+  ) {
+    return this.connectionService.disconnect(req.user, connectionId);
   }
 }

@@ -114,7 +114,13 @@ export class MercadoPagoWebhookService {
    */
   async handlePreapprovalEvent(data: {
     preapprovalId: string;
-    status: 'pending' | 'authorized' | 'active' | 'cancelled' | 'paused' | 'expired';
+    status:
+      | 'pending'
+      | 'authorized'
+      | 'active'
+      | 'cancelled'
+      | 'paused'
+      | 'expired';
     externalReference: string | null;
     nextBillingDate: string;
     lastBillingDate: string;
@@ -125,7 +131,9 @@ export class MercadoPagoWebhookService {
       );
 
     if (!subscription && data.externalReference) {
-      const tenantId = this.parseTenantIdFromExternalRef(data.externalReference);
+      const tenantId = this.parseTenantIdFromExternalRef(
+        data.externalReference,
+      );
       if (tenantId) {
         subscription =
           await this.subscriptionRepository.findByTenantId(tenantId);

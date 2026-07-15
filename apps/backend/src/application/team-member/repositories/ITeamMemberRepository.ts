@@ -1,4 +1,8 @@
-import { TeamMember, TeamInvitation, InvitationStatus } from '../../../domain/entities/team_member.entity';
+import {
+  TeamMember,
+  TeamInvitation,
+  InvitationStatus,
+} from '../../../domain/entities/team_member.entity';
 
 export abstract class ITeamMemberRepository {
   abstract findByUserIdAndTenantId(

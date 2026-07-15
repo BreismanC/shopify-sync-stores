@@ -1,41 +1,39 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/Dialog";
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import ConnectStoreDialog from './ConnectStoreDialog';
+import type { CurrentStore } from '@/lib/store/current';
+import { useState } from 'react';
 
-export default function ConnectStoreButton() {
+interface ConnectStoreButtonProps {
+  currentStore: CurrentStore | null;
+  onConnected?: () => void;
+}
+
+export default function ConnectStoreButton({
+  currentStore,
+  onConnected,
+}: ConnectStoreButtonProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button className="bg-green-9 hover:bg-green-10 text-white">
-          <Plus className="size-3.5" />
-          <span>Connect new store</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Conectar tienda Shopify</DialogTitle>
-          <DialogDescription>
-            Para conectar una tienda real, necesitas autenticarte con Shopify
-            OAuth (próximamente).
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button mode="pill">Cerrar</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="bg-accent-9 hover:bg-accent-10 text-accent-contrast"
+        aria-label="Conectar tienda"
+      >
+        <Plus className="size-3.5" />
+        <span>Conectar tienda</span>
+      </Button>
+      <ConnectStoreDialog
+        open={open}
+        onOpenChange={setOpen}
+        currentStore={currentStore}
+        onConnected={() => onConnected?.()}
+      />
+    </>
   );
 }

@@ -15,4 +15,5 @@ export abstract class IStoreRepository {
       order: 'asc' | 'desc';
     },
   ): Promise<{ data: Store[]; total: number }>;
+  abstract findByStoreKey(storeKey: string): Promise<Store | null>;
 }

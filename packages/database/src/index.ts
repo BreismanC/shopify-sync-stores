@@ -3,6 +3,14 @@
 
 export { initializeDataSource, getDataSource, closeDataSource, getDataSourceOptions } from './typeorm.config';
 
-export { Subscription, Tenant, User, Store } from './entities';
+export {
+  Subscription,
+  Tenant,
+  User,
+  Store,
+  generateStoreKey,
+  normalizeStoreKey,
+  StoreConnection,
+} from './entities';
 export * from './enums';
 export { BaseRepository, SubscriptionRepository, createSubscriptionRepository } from './repositories';

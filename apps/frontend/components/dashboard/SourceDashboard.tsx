@@ -1,44 +1,49 @@
-import type { CurrentStore } from "@/lib/store/current";
+import type { CurrentStore } from '@/lib/store/current';
 import {
   AccountCard,
   FeedbackCard,
   GuidesCard,
   MetricCard,
   type DashboardLink,
-} from "@/components/dashboard/DashboardCards";
-import { StoreKeyCard } from "@/components/dashboard/StoreKeyCard";
+} from '@/components/dashboard/DashboardCards';
+import { StoreKeyCard } from '@/components/dashboard/StoreKeyCard';
 
 interface SourceDashboardProps {
   store: CurrentStore;
 }
 
 const guides: DashboardLink[] = [
-  { label: "Guía de inicio rápido", href: "/dashboard/help/quick-start" },
-  { label: "Conectar una tienda", href: "/dashboard/help/connect-store" },
-  { label: "Sincronizar productos", href: "/dashboard/help/sync-products" },
+  { label: 'Guía de inicio rápido', href: '/dashboard/help/quick-start' },
+  { label: 'Conectar una tienda', href: '/dashboard/help/connect-store' },
+  { label: 'Sincronizar productos', href: '/dashboard/help/sync-products' },
   {
-    label: "Buenas prácticas y sincronización saludable",
-    href: "/dashboard/help/best-practices",
+    label: 'Buenas prácticas y sincronización saludable',
+    href: '/dashboard/help/best-practices',
   },
 ];
 
 const metrics = [
-  { label: "Tiendas conectadas", value: 2, period: "Hasta hoy" },
-  { label: "Productos sincronizados", value: 9, period: "Hasta hoy" },
+  { label: 'Tiendas conectadas', value: 2, period: 'Hasta hoy' },
+  { label: 'Productos sincronizados', value: 9, period: 'Hasta hoy' },
   {
-    label: "Órdenes con productos sincronizados",
+    label: 'Órdenes con productos sincronizados',
     value: 9,
-    period: "Últimos 30 días",
+    period: 'Últimos 30 días',
   },
   {
-    label: "Productos sincronizados vendidos",
+    label: 'Productos sincronizados vendidos',
     value: 15,
-    period: "Últimos 30 días",
+    period: 'Últimos 30 días',
   },
 ];
 
+function resolveStoreKey(store: CurrentStore): string {
+  if (store.storeKey && store.storeKey.length > 0) return store.storeKey;
+  return store.id.replaceAll('-', '').slice(0, 13);
+}
+
 export function SourceDashboard({ store }: SourceDashboardProps) {
-  const storeKey = store.id.replaceAll("-", "").slice(0, 13);
+  const storeKey = resolveStoreKey(store);
 
   return (
     <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">

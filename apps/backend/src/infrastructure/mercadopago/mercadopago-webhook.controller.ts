@@ -140,13 +140,9 @@ export class MercadoPagoWebhookController {
    * para no acumular reintentos de un evento que no podemos procesar.
    */
   private async handlePreapproval(preapprovalId: string): Promise<void> {
-    let status: Awaited<
-      ReturnType<MercadoPagoService['getPreapprovalById']>
-    >;
+    let status: Awaited<ReturnType<MercadoPagoService['getPreapprovalById']>>;
     try {
-      status = await this.mercadoPagoService.getPreapprovalById(
-        preapprovalId,
-      );
+      status = await this.mercadoPagoService.getPreapprovalById(preapprovalId);
     } catch (err) {
       this.logger.warn(
         `[MP Webhook] No se pudo resolver el preapproval ${preapprovalId} en MP. Ack 200 para evitar reintentos.`,

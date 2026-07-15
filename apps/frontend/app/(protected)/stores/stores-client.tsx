@@ -1,34 +1,32 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { apiFetch } from "@/lib/auth/fetch-with-auth";
-import DataTable from "@/components/Stores/DataTable";
-import type { PaginationMeta } from "@/components/Stores/types";
+import { useCallback, useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { apiFetch } from '@/lib/auth/fetch-with-auth';
+import { BACKEND_URL } from '@/lib/env';
+import DataTable from '@/components/Stores/DataTable';
+import type {
+  ConnectionRow,
+  PaginationMeta,
+  StoreConnectionListResponse,
+} from '@/components/Stores/types';
+import type { CurrentStore } from '@/lib/store/current';
 
-export interface Store {
-  id: string;
-  shopifyShopId: string;
-  role: "SOURCE" | "VENDOR";
-  isActive: boolean;
-  tenantId: string;
-  createdAt: string;
-  updatedAt: string;
+export type { ConnectionRow } from '@/components/Stores/types';
+
+interface CurrentStoreResponse {
+  store: CurrentStore | null;
 }
 
-interface StoresResponse {
-  data: Store[];
-  pagination: PaginationMeta;
+export interface StoresClientProps {
+  currentStore: CurrentStore | null;
 }
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
-
-export default function StoresClient() {
+export default function StoresClient({ currentStore }: StoresClientProps) {
   const { data: session } = useSession();
   const accessToken = session?.accessToken;
 
-  const [stores, setStores] = useState<Store[]>([]);
+  const [stores, setStores] = useState<ConnectionRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -38,9 +36,9 @@ export default function StoresClient() {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('connectedAt');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [perPage] = useState(10);
 
@@ -56,10 +54,10 @@ export default function StoresClient() {
         order,
       });
       const url = `${BACKEND_URL}/api/stores?${params.toString()}`;
-      const res = await apiFetch<StoresResponse>(
+      const res = await apiFetch<StoreConnectionListResponse>(
         url,
-        { method: "GET" },
-        accessToken
+        { method: 'GET' },
+        accessToken,
       );
       setStores(res.data ?? []);
       setPagination(
@@ -69,17 +67,16 @@ export default function StoresClient() {
           perPage,
           lastPage: 1,
           totalPages: 1,
-        }
+        },
       );
     } catch (err) {
-      console.error("Error fetching stores:", err);
+      console.error('Error fetching stores:', err);
       setStores([]);
     } finally {
       setIsLoading(false);
     }
   }, [accessToken, search, page, perPage, sortBy, order]);
 
-  // Debounce 300ms para search; fetch inmediato para sort/order/page
   useEffect(() => {
     if (!accessToken) return;
     const timer = setTimeout(() => {
@@ -93,7 +90,10 @@ export default function StoresClient() {
     setPage(1);
   };
 
-  const handleSortChange = (newSortBy: string, newOrder: "asc" | "desc") => {
+  const handleSortChange = (
+    newSortBy: string,
+    newOrder: 'asc' | 'desc',
+  ) => {
     setSortBy(newSortBy);
     setOrder(newOrder);
     setPage(1);
@@ -103,6 +103,11 @@ export default function StoresClient() {
     setPage(newPage);
   };
 
+  const handleRefetch = useCallback(() => {
+    setPage(1);
+    fetchStores();
+  }, [fetchStores]);
+
   return (
     <DataTable
       stores={stores}
@@ -111,9 +116,11 @@ export default function StoresClient() {
       search={search}
       sortBy={sortBy}
       order={order}
+      currentStore={currentStore}
       onSearchChange={handleSearchChange}
       onSortChange={handleSortChange}
       onPageChange={handlePageChange}
+      onRefetch={handleRefetch}
     />
   );
 }

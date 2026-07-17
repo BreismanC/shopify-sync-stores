@@ -9,7 +9,7 @@ const buttonVariants = cva("button", {
     variant: {
       default: "button-fill",
       fill: "button-fill",
-      pill: "button-pill border border-gray-6 text-gray-11 bg-gray-2 hover:bg-gray-3",
+      pill: "button-pill border border-gray-3 text-gray-11 bg-gray-2 hover:bg-gray-3",
       link: "button-link",
       menu: "button-menu",
     },

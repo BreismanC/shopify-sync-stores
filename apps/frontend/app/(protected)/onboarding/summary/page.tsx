@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { OnboardingSummary } from "@/components/onboarding/OnboardingSummary";
+import { OnboardingHeader } from "@/components/onboarding/OnboardingHeader";
 import {
   OnboardingStatus,
   isValidStatus,
@@ -23,8 +24,12 @@ export default async function OnboardingSummaryPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-4 sm:p-8">
-      <OnboardingSummary />
+    <div className="flex min-h-screen w-full flex-col bg-gray-2">
+      <OnboardingHeader />
+
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
+        <OnboardingSummary />
+      </main>
     </div>
   );
 }

@@ -11,6 +11,16 @@ import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
 import { TenantService } from '../tenant/tenant.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 
+export type AuthUserPayload = {
+  id: string;
+  email: string;
+  name: string;
+  tenantId: string | null;
+  role: string;
+  isOwner: boolean;
+  onboardingStatus: OnboardingStatus;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -35,35 +45,52 @@ export class AuthService {
     return null;
   }
 
+  private async resolveOnboardingStatus(
+    user: User,
+  ): Promise<OnboardingStatus> {
+    if (!user.tenantId) {
+      return OnboardingStatus.PENDING_TENANT_CONFIG;
+    }
+    const tenant = await this.tenantService.findById(user.tenantId);
+    return (
+      tenant?.onboardingStatus ?? OnboardingStatus.PENDING_TENANT_CONFIG
+    );
+  }
+
+  private toAuthUser(
+    user: User,
+    onboardingStatus: OnboardingStatus,
+  ): AuthUserPayload {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      tenantId: user.tenantId,
+      role: user.role,
+      isOwner: user.role === UserRole.OWNER,
+      onboardingStatus,
+    };
+  }
+
   async login(user: User): Promise<{
     access_token: string;
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      tenantId: string | null;
-      role: string;
-      onboardingStatus: OnboardingStatus;
-    };
+    user: AuthUserPayload;
   }> {
     console.log('Logging in user:', user);
+    const onboardingStatus = await this.resolveOnboardingStatus(user);
+    const authUser = this.toAuthUser(user, onboardingStatus);
     const payload = {
       email: user.email,
       sub: user.id,
       tenantId: user.tenantId,
-      onboardingStatus: user.onboardingStatus,
+      role: user.role,
+      isOwner: authUser.isOwner,
+      onboardingStatus,
     };
-    return Promise.resolve({
+    return {
       access_token: this.jwtService.sign(payload),
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        tenantId: user.tenantId,
-        role: user.role,
-        onboardingStatus: user.onboardingStatus,
-      },
-    });
+      user: authUser,
+    };
   }
 
   async register(data: {
@@ -74,7 +101,7 @@ export class AuthService {
   }): Promise<User> {
     const existingUser = await this.userRepository.findByEmail(data.email);
     if (existingUser) {
-      throw new Error('El correo electrónico ya está en uso'); // Using Error for easier testing if UnauthorizedException is hard to mock
+      throw new Error('El correo electrónico ya está en uso');
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -85,14 +112,13 @@ export class AuthService {
     // 2. Crear la suscripción de prueba
     await this.subscriptionService.createTrial(tenant.id);
 
-    // 3. Crear el Usuario vinculado al nuevo Tenant
+    // 3. Crear el Usuario OWNER vinculado al nuevo Tenant
     const user = this.userRepository.create({
       name: data.name,
       email: data.email,
       password: hashedPassword,
       tenantId: tenant.id,
-      role: UserRole.MEMBER,
-      onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+      role: UserRole.OWNER,
     });
 
     return this.userRepository.save(user);
@@ -111,8 +137,7 @@ export class AuthService {
       email: data.email,
       name: data.name,
       tenantId: undefined,
-      role: UserRole.MEMBER,
-      onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+      role: UserRole.OWNER,
     });
 
     return this.userRepository.save(user);

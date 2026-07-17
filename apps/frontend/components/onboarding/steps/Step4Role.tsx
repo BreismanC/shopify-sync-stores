@@ -6,11 +6,18 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { OnboardingStatus } from "@/lib/auth/onboarding-status";
+import {
+  OnboardingStatus,
+  statusToStep,
+} from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
 import { apiFetch } from "@/lib/auth";
 import { cn } from "@/utils/class-names";
 import { BACKEND_URL } from "@/lib/env";
+
+function goToOnboardingStep(status: OnboardingStatus) {
+  window.location.href = `/onboarding?step=${statusToStep(status)}`;
+}
 
 interface StoreInfo {
   id: string;
@@ -34,7 +41,7 @@ const ROLE_DESCRIPTIONS: Record<StoreRole, { title: string; description: string 
 };
 
 export function Step4Role() {
-  const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
+  const { goToStep } = useOnboardingNavigation();
   const { data: session, status, update: updateSession } = useSession();
   const accessToken = session?.accessToken as string | undefined;
 
@@ -87,7 +94,7 @@ export function Step4Role() {
       );
       toast.success("Rol guardado");
       await updateSession({ onboardingStatus: data.onboardingStatus });
-      nextStepAfterSave(4, data.onboardingStatus);
+      goToOnboardingStep(data.onboardingStatus);
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el rol");
       setIsSaving(false);
@@ -104,14 +111,14 @@ export function Step4Role() {
 
   if (!store) {
     return (
-      <Card className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-8">
-        <p className="text-sm text-on-surface-variant">
+      <Card className="rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-sm">
+        <p className="text-sm text-gray-11">
           No tenés una tienda conectada. Volvé al paso 3 para conectar una.
         </p>
         <Button
           type="button"
           onClick={() => goToStep(3)}
-          className="mt-4 h-12 bg-primary px-6 font-semibold text-white"
+          className="mt-4 h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none"
         >
           Ir al paso 3
         </Button>
@@ -120,13 +127,13 @@ export function Step4Role() {
   }
 
   return (
-    <Card className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-8">
-      <h2 className="text-xl font-semibold text-on-background">
+    <Card className="rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-sm">
+      <h2 className="text-xl font-semibold text-gray-12 tracking-tight">
         ¿Qué rol tiene tu tienda?
       </h2>
-      <p className="mt-1 text-sm text-on-surface-variant">
+      <p className="mt-1 text-sm text-gray-11">
         Tienda conectada:{" "}
-        <strong className="text-on-background">{store.shopifyShopId}</strong>
+        <strong className="text-gray-12">{store.shopifyShopId}</strong>
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -138,16 +145,16 @@ export function Step4Role() {
               type="button"
               onClick={() => setSelectedRole(role)}
               className={cn(
-                "flex flex-col rounded-xl border-2 bg-surface-container-lowest p-5 text-left transition-all",
+                "flex flex-col rounded-xl border-2 bg-gray-1 p-5 text-left transition-all",
                 isSelected
-                  ? "border-primary shadow-sm"
-                  : "border-outline-variant hover:border-primary/50",
+                  ? "border-accent-9 shadow-sm"
+                  : "border-gray-6 hover:border-accent-9/50",
               )}
             >
-              <span className="text-base font-semibold text-on-background">
+              <span className="text-base font-semibold text-gray-12">
                 {ROLE_DESCRIPTIONS[role].title}
               </span>
-              <span className="mt-1 text-sm text-on-surface-variant">
+              <span className="mt-1 text-sm text-gray-11">
                 {ROLE_DESCRIPTIONS[role].description}
               </span>
             </button>
@@ -160,7 +167,7 @@ export function Step4Role() {
           type="button"
           variant="link"
           onClick={() => goToStep(3)}
-          className="h-12 px-4 text-on-surface-variant"
+          className="h-12 px-4 text-gray-11 hover:bg-gray-3 hover:text-gray-12"
         >
           <ArrowLeft className="mr-1 h-4 w-4" />
           Volver al paso 3
@@ -170,7 +177,7 @@ export function Step4Role() {
           onClick={handleSave}
           isLoading={isSaving}
           isDisabled={!selectedRole}
-          className="h-12 bg-primary px-6 font-semibold text-white"
+          className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none"
         >
           Continuar
         </Button>

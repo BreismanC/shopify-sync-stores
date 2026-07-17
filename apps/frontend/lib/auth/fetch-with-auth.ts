@@ -47,9 +47,18 @@ export async function fetchWithAuth<T = unknown>(
   });
 
   if (!response.ok) {
-    const error: AuthFetchError = new Error(
-      `HTTP ${response.status}: ${response.statusText}`,
-    );
+    let message = `HTTP ${response.status}: ${response.statusText}`;
+    try {
+      const body = await response.json();
+      if (typeof body?.message === 'string') {
+        message = body.message;
+      } else if (Array.isArray(body?.message)) {
+        message = body.message.join(', ');
+      }
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    const error: AuthFetchError = new Error(message);
     error.status = response.status;
     error.statusText = response.statusText;
     throw error;

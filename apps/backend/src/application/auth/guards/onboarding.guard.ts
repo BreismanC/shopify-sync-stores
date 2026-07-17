@@ -18,18 +18,13 @@ const DEFAULT_EXEMPT_PATTERNS: RegExp[] = [
  * OnboardingGuard
  *
  * Bloquea el acceso a endpoints que requieren un onboarding completo.
- * NO se aplica como APP_GUARD global; cada controller que lo necesite debe
- * declararlo con @UseGuards(OnboardingGuard) o vía un Mixin.
+ * El status se lee del TENANT (inyectado en request.user por JwtStrategy).
  *
  * Reglas:
- * - Si el usuario no tiene `onboardingStatus` definido o no es COMPLETED,
- *   el acceso es denegado, salvo que la URL matchee un patrón exento.
- * - Patrones exentos por defecto: /api/auth, /api/onboarding, /api/webhooks, /api/health.
- * - Para reusar el guard en un controller específico, el controller debe
- *   venir después del JwtAuthGuard en la cadena.
- *
- * Para customizar los patrones exentos, usar `OnboardingGuard.forRoot(patterns)`
- * y registrar la versión custom en el módulo.
+ * - COMPLETED → acceso permitido
+ * - OWNER con onboarding incompleto → Forbidden (debe completar onboarding)
+ * - Miembro con PENDING_TEAM_CONFIG → acceso permitido (owner ya llegó a team)
+ * - Miembro con status anterior → Forbidden
  */
 @Injectable()
 export class OnboardingGuard implements CanActivate {
@@ -43,6 +38,7 @@ export class OnboardingGuard implements CanActivate {
         name: string;
         tenantId: string;
         role: string;
+        isOwner?: boolean;
         onboardingStatus?: OnboardingStatus;
       };
       url: string;
@@ -62,6 +58,14 @@ export class OnboardingGuard implements CanActivate {
     }
 
     if (user.onboardingStatus === OnboardingStatus.COMPLETED) {
+      return true;
+    }
+
+    // Miembros invitados pueden usar la app cuando el tenant llegó a team config.
+    if (
+      !user.isOwner &&
+      user.onboardingStatus === OnboardingStatus.PENDING_TEAM_CONFIG
+    ) {
       return true;
     }
 

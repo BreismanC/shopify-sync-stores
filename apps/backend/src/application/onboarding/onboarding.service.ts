@@ -112,13 +112,15 @@ export class OnboardingService {
     );
 
     user.tenantId = tenant.id;
+    await this.userRepository.save(user);
 
-    if (user.onboardingStatus === OnboardingStatus.PENDING_TENANT_CONFIG) {
-      user.onboardingStatus = OnboardingStatus.PENDING_PLAN_SELECTION;
-      await this.userRepository.save(user);
-    }
+    const onboardingStatus = await this.advanceTenantStatus(
+      tenant,
+      OnboardingStatus.PENDING_TENANT_CONFIG,
+      OnboardingStatus.PENDING_PLAN_SELECTION,
+    );
 
-    return { tenant, onboardingStatus: user.onboardingStatus };
+    return { tenant, onboardingStatus };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -197,7 +199,7 @@ export class OnboardingService {
       subscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       externalReference: mpStatus.externalReference,
-      onboardingStatus: user.onboardingStatus,
+      onboardingStatus: await this.getTenantOnboardingStatus(user),
     };
   }
 
@@ -247,19 +249,8 @@ export class OnboardingService {
       await this.advanceUserAfterPayment(preapprovalId);
     }
 
-    const users = await this.userRepository.findByTenantId(
-      subscription.tenantId,
-    );
-    const owner =
-      users.find(
-        (u) => u.onboardingStatus === OnboardingStatus.PENDING_STORE_CONFIG,
-      ) ??
-      users.find(
-        (u) => u.onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION,
-      ) ??
-      users[0];
-
-    const onboardingStatus = owner?.onboardingStatus ?? null;
+    const tenant = await this.tenantRepository.findById(subscription.tenantId);
+    const onboardingStatus = tenant?.onboardingStatus ?? null;
 
     // El frontend solo debe seguir polling mientras el usuario está en
     // paso 2 Y la suscripción sigue pendiente de pago.
@@ -375,7 +366,7 @@ export class OnboardingService {
       preapprovalId: preapproval.externalSubscriptionId,
       initPoint: preapproval.initPoint,
       statusToken,
-      onboardingStatus: user.onboardingStatus,
+      onboardingStatus: await this.getTenantOnboardingStatus(user),
     };
   }
 
@@ -403,12 +394,13 @@ export class OnboardingService {
       // (el webhook es el que confirma). Si la subscription sigue TRIAL, está OK.
     }
 
-    if (user.onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION) {
-      user.onboardingStatus = OnboardingStatus.PENDING_STORE_CONFIG;
-      await this.userRepository.save(user);
-    }
+    const onboardingStatus = await this.advanceTenantByUser(
+      user,
+      OnboardingStatus.PENDING_PLAN_SELECTION,
+      OnboardingStatus.PENDING_STORE_CONFIG,
+    );
 
-    return { subscription, onboardingStatus: user.onboardingStatus };
+    return { subscription, onboardingStatus };
   }
 
   /**
@@ -431,28 +423,25 @@ export class OnboardingService {
       return null;
     }
 
-    const users = await this.userRepository.findByTenantId(
-      subscription.tenantId,
-    );
-    if (users.length === 0) {
+    const tenant = await this.tenantRepository.findById(subscription.tenantId);
+    if (!tenant) {
       return null;
     }
 
-    // Buscamos al primer user del tenant que esté en PENDING_PLAN_SELECTION.
-    // (El owner es el que típicamente está en ese estado.)
-    const target = users.find(
-      (u) => u.onboardingStatus === OnboardingStatus.PENDING_PLAN_SELECTION,
-    );
-    if (!target) {
+    if (tenant.onboardingStatus !== OnboardingStatus.PENDING_PLAN_SELECTION) {
       return null;
     }
 
-    target.onboardingStatus = OnboardingStatus.PENDING_STORE_CONFIG;
-    await this.userRepository.save(target);
+    tenant.onboardingStatus = OnboardingStatus.PENDING_STORE_CONFIG;
+    await this.tenantRepository.save(tenant);
+
+    const users = await this.userRepository.findByTenantId(subscription.tenantId);
+    const owner =
+      users.find((u) => u.role === 'OWNER') ?? users[0] ?? null;
 
     return {
-      userId: target.id,
-      onboardingStatus: target.onboardingStatus,
+      userId: owner?.id ?? '',
+      onboardingStatus: tenant.onboardingStatus,
     };
   }
 
@@ -513,12 +502,46 @@ export class OnboardingService {
     store.isActive = true;
     const saved = await this.storeRepository.save(store);
 
-    if (user.onboardingStatus === OnboardingStatus.PENDING_STORE_CONFIG) {
-      user.onboardingStatus = OnboardingStatus.PENDING_STORE_ROLE;
-      await this.userRepository.save(user);
+    const onboardingStatus = await this.ensureTenantStatusAtLeast(
+      user.tenantId,
+      OnboardingStatus.PENDING_STORE_ROLE,
+    );
+
+    return { store: saved, onboardingStatus };
+  }
+
+  /**
+   * Confirma una tienda ya conectada y avanza el onboarding a
+   * PENDING_STORE_ROLE si el tenant todavía estaba en STORE_CONFIG.
+   * Usado cuando el usuario vuelve al paso 3 y continúa sin reingresar token.
+   */
+  async confirmStore(userId: string): Promise<{
+    store: Store;
+    onboardingStatus: OnboardingStatus;
+  }> {
+    const user = await this.requireStatus(
+      userId,
+      OnboardingStatus.PENDING_STORE_CONFIG,
+    );
+
+    if (!user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
     }
 
-    return { store: saved, onboardingStatus: user.onboardingStatus };
+    const stores = await this.storeRepository.findByTenantId(user.tenantId);
+    const store = stores[0];
+    if (!store) {
+      throw new BadRequestException(
+        'No hay una tienda conectada. Completá el formulario para vincularla.',
+      );
+    }
+
+    const onboardingStatus = await this.ensureTenantStatusAtLeast(
+      user.tenantId,
+      OnboardingStatus.PENDING_STORE_ROLE,
+    );
+
+    return { store, onboardingStatus };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -547,12 +570,12 @@ export class OnboardingService {
     store.role = input.role;
     const saved = await this.storeRepository.save(store);
 
-    if (user.onboardingStatus === OnboardingStatus.PENDING_STORE_ROLE) {
-      user.onboardingStatus = OnboardingStatus.PENDING_TEAM_CONFIG;
-      await this.userRepository.save(user);
-    }
+    const onboardingStatus = await this.ensureTenantStatusAtLeast(
+      user.tenantId,
+      OnboardingStatus.PENDING_TEAM_CONFIG,
+    );
 
-    return { store: saved, onboardingStatus: user.onboardingStatus };
+    return { store: saved, onboardingStatus };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -610,17 +633,16 @@ export class OnboardingService {
       );
     }
 
-    user.onboardingStatus = OnboardingStatus.COMPLETED;
-    await this.userRepository.save(user);
-
-    // Activar tenant (de TRIAL a ACTIVE)
     const tenant = await this.tenantRepository.findById(user.tenantId);
-    if (tenant) {
-      tenant.status = TenantStatus.ACTIVE;
-      await this.tenantRepository.save(tenant);
+    if (!tenant) {
+      throw new NotFoundException('Tenant no encontrado');
     }
 
-    return { onboardingStatus: user.onboardingStatus };
+    tenant.onboardingStatus = OnboardingStatus.COMPLETED;
+    tenant.status = TenantStatus.ACTIVE;
+    await this.tenantRepository.save(tenant);
+
+    return { onboardingStatus: tenant.onboardingStatus };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -635,6 +657,66 @@ export class OnboardingService {
     return user;
   }
 
+  private async getTenantOnboardingStatus(
+    user: User,
+  ): Promise<OnboardingStatus> {
+    if (!user.tenantId) {
+      return OnboardingStatus.PENDING_TENANT_CONFIG;
+    }
+    const tenant = await this.tenantRepository.findById(user.tenantId);
+    return tenant?.onboardingStatus ?? OnboardingStatus.PENDING_TENANT_CONFIG;
+  }
+
+  private async advanceTenantStatus(
+    tenant: Tenant,
+    from: OnboardingStatus,
+    to: OnboardingStatus,
+  ): Promise<OnboardingStatus> {
+    if (tenant.onboardingStatus === from) {
+      tenant.onboardingStatus = to;
+      await this.tenantRepository.save(tenant);
+    }
+    return tenant.onboardingStatus;
+  }
+
+  /**
+   * Avanza el status del tenant hacia `minStatus` si todavía está atrás.
+   * No retrocede si el tenant ya pasó ese paso.
+   */
+  private async ensureTenantStatusAtLeast(
+    tenantId: string,
+    minStatus: OnboardingStatus,
+  ): Promise<OnboardingStatus> {
+    const tenant = await this.tenantRepository.findById(tenantId);
+    if (!tenant) {
+      throw new NotFoundException('Tenant no encontrado');
+    }
+
+    const currentStep = ONBOARDING_STATUS_TO_STEP[tenant.onboardingStatus];
+    const minStep = ONBOARDING_STATUS_TO_STEP[minStatus];
+    if (currentStep < minStep) {
+      tenant.onboardingStatus = minStatus;
+      await this.tenantRepository.save(tenant);
+    }
+
+    return tenant.onboardingStatus;
+  }
+
+  private async advanceTenantByUser(
+    user: User,
+    from: OnboardingStatus,
+    to: OnboardingStatus,
+  ): Promise<OnboardingStatus> {
+    if (!user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
+    }
+    const tenant = await this.tenantRepository.findById(user.tenantId);
+    if (!tenant) {
+      throw new NotFoundException('Tenant no encontrado');
+    }
+    return this.advanceTenantStatus(tenant, from, to);
+  }
+
   private async requireStatus(
     userId: string,
     expected: OnboardingStatus,
@@ -643,24 +725,24 @@ export class OnboardingService {
   }
 
   /**
-   * Permite editar un step si el user está en ese step o ya lo superó.
-   * Falla con 409 solo si el user intenta editar un step al que todavía
-   * no llegó (no debe poder saltarse pasos hacia adelante).
+   * Permite editar un step si el TENANT está en ese step o ya lo superó.
+   * Falla con 409 solo si intenta editar un step al que todavía no llegó.
    */
   private async requireStepReachable(
     userId: string,
     expected: OnboardingStatus,
   ): Promise<User> {
     const user = await this.getUser(userId);
-    if (user.onboardingStatus === OnboardingStatus.COMPLETED) {
+    const currentStatus = await this.getTenantOnboardingStatus(user);
+    if (currentStatus === OnboardingStatus.COMPLETED) {
       return user;
     }
-    const currentStep = ONBOARDING_STATUS_TO_STEP[user.onboardingStatus];
+    const currentStep = ONBOARDING_STATUS_TO_STEP[currentStatus];
     const targetStep = ONBOARDING_STATUS_TO_STEP[expected];
     if (currentStep < targetStep) {
       throw new ConflictException({
-        message: `Estado de onboarding inválido. Esperado: ${expected}, actual: ${user.onboardingStatus}`,
-        current: user.onboardingStatus,
+        message: `Estado de onboarding inválido. Esperado: ${expected}, actual: ${currentStatus}`,
+        current: currentStatus,
         expected,
       });
     }

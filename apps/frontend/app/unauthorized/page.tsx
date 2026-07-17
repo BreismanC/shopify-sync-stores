@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ShieldX } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { UnauthorizedActions } from "./UnauthorizedActions";
 
 type Reason =
   | "store-not-found"
@@ -11,7 +12,7 @@ type Reason =
 
 const REASON_COPY: Record<
   Reason,
-  { title: string; description: string; cta: string; ctaHref: string }
+  { title: string; description: string; cta: string; ctaHref: string; signOut?: boolean }
 > = {
   "store-not-found": {
     title: "Tu tienda aún no está conectada",
@@ -31,8 +32,9 @@ const REASON_COPY: Record<
     title: "Esperando que el dueño termine la configuración",
     description:
       "El dueño de este espacio de trabajo todavía no completó la configuración inicial. Apenas termine, vas a poder acceder al dashboard.",
-    cta: "Volver al inicio",
+    cta: "Cerrar sesión",
     ctaHref: "/auth/login",
+    signOut: true,
   },
   unknown: {
     title: "Acceso no autorizado",
@@ -73,19 +75,25 @@ export default async function UnauthorizedPage({
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button
-            asChild
-            className="h-12 bg-primary px-6 font-semibold text-primary-foreground"
-          >
-            <Link href={copy.ctaHref}>{copy.cta}</Link>
-          </Button>
-          <Button
-            asChild
-            variant="link"
-            className="h-12 px-4 text-on-surface-variant"
-          >
-            <Link href="/auth/login">Iniciar sesión con otra cuenta</Link>
-          </Button>
+          {copy.signOut ? (
+            <UnauthorizedActions ctaLabel={copy.cta} />
+          ) : (
+            <>
+              <Button
+                asChild
+                className="h-12 bg-primary px-6 font-semibold text-primary-foreground"
+              >
+                <Link href={copy.ctaHref}>{copy.cta}</Link>
+              </Button>
+              <Button
+                asChild
+                variant="link"
+                className="h-12 px-4 text-on-surface-variant"
+              >
+                <Link href="/auth/login">Iniciar sesión con otra cuenta</Link>
+              </Button>
+            </>
+          )}
         </div>
       </Card>
     </div>

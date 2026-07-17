@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TeamInvitationService } from './team-invitation.service';
@@ -43,18 +44,30 @@ export class TeamInvitationController {
   @Get('onboarding/team')
   @UseGuards(JwtAuthGuard)
   async list(@Req() req: RequestWithUser) {
-    return this.teamInvitationService.listByTenant(req.user.tenantId!);
+    if (!req.user.tenantId) {
+      return { team: [] };
+    }
+    const team = await this.teamInvitationService.listByTenant(
+      req.user.tenantId,
+    );
+    return { team };
   }
 
   @Post('onboarding/team/invite')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async invite(@Req() req: RequestWithUser, @Body() body: InviteTeamMemberDto) {
-    return this.teamInvitationService.createAndSend(
-      req.user.tenantId!,
+    if (!req.user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
+    }
+    // Solo agrega a la lista (PENDING). El email se manda con "Enviar invitaciones".
+    const member = await this.teamInvitationService.createAndSend(
+      req.user.tenantId,
       req.user.id,
       body,
+      { sendEmail: false },
     );
+    return { member };
   }
 
   @Put('onboarding/team/:id')
@@ -68,8 +81,6 @@ export class TeamInvitationController {
     void req;
     void params;
     void body;
-    // Implementación mínima: las invitaciones se reemplazan creando una nueva
-    // con `invite`. Una edición in-place requeriría refactor mayor.
     return { id: params.id, ...body };
   }
 
@@ -80,7 +91,10 @@ export class TeamInvitationController {
     @Req() req: RequestWithUser,
     @Param() params: DeleteTeamMemberParamsDto,
   ) {
-    await this.teamInvitationService.revoke(req.user.tenantId!, params.id);
+    if (!req.user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
+    }
+    await this.teamInvitationService.revoke(req.user.tenantId, params.id);
     return { id: params.id, revoked: true };
   }
 
@@ -88,21 +102,13 @@ export class TeamInvitationController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async resendAll(@Req() req: RequestWithUser) {
-    // Re-envía todas las invitaciones PENDING del tenant.
-    const invitations = await this.teamInvitationService.listByTenant(
-      req.user.tenantId!,
-    );
-    const pending = invitations.filter(
-      (i) => i.status === 'PENDING' && i.expiresAt.getTime() > Date.now(),
-    );
-    for (const inv of pending) {
-      await this.teamInvitationService.createAndSend(
-        req.user.tenantId!,
-        req.user.id,
-        { email: inv.email, name: inv.name, role: inv.role },
-      );
+    if (!req.user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
     }
-    return { sent: pending.length, sentAt: new Date().toISOString() };
+    return this.teamInvitationService.sendPendingInvites(
+      req.user.tenantId,
+      req.user.id,
+    );
   }
 
   // ─── Rutas públicas (el invitado acepta la invitación) ──────────────────

@@ -25,6 +25,7 @@ describe('AuthService', () => {
     } as any;
     tenantService = {
       create: jest.fn(),
+      findById: jest.fn(),
     } as any;
     subscriptionService = {
       createTrial: jest.fn(),
@@ -59,7 +60,7 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should successfully register a new user, creating a tenant and a trial subscription', async () => {
+    it('should successfully register a new OWNER user with tenant and trial', async () => {
       const registerData = {
         name: 'Test User',
         email: 'test@example.com',
@@ -73,8 +74,7 @@ describe('AuthService', () => {
         email: 'test@example.com',
         name: 'Test User',
         tenantId: 'tenant-uuid',
-        role: UserRole.MEMBER,
-        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+        role: UserRole.OWNER,
       };
 
       userRepository.findByEmail.mockResolvedValue(null);
@@ -99,7 +99,7 @@ describe('AuthService', () => {
       expect(userRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantId: mockTenant.id,
-          onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+          role: UserRole.OWNER,
         }),
       );
       expect(result).toEqual(mockUser);
@@ -136,14 +136,13 @@ describe('AuthService', () => {
       expect(result).toEqual(mockUser);
     });
 
-    it('should create a new user with tenantId: undefined and PENDING_TENANT_CONFIG if user does not exist', async () => {
+    it('should create a new OWNER without tenant if user does not exist', async () => {
       const userData = { email: 'new@example.com', name: 'New User' };
       const mockUser = {
         id: 'user-uuid',
         ...userData,
         tenantId: null,
-        role: UserRole.MEMBER,
-        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+        role: UserRole.OWNER,
       };
 
       userRepository.findByEmail.mockResolvedValue(null);
@@ -156,8 +155,7 @@ describe('AuthService', () => {
       expect(userRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantId: undefined,
-          role: UserRole.MEMBER,
-          onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+          role: UserRole.OWNER,
         }),
       );
       expect(result).toEqual(mockUser);
@@ -165,30 +163,36 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should include onboardingStatus in the JWT payload and the user response', async () => {
+    it('should include tenant onboardingStatus and isOwner in the response', async () => {
       const mockUser: any = {
         id: 'user-uuid',
         email: 'test@example.com',
         name: 'Test User',
         tenantId: 'tenant-uuid',
-        role: UserRole.MEMBER,
-        onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+        role: UserRole.OWNER,
       };
 
+      tenantService.findById.mockResolvedValue({
+        id: 'tenant-uuid',
+        onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+      } as any);
       jwtService.sign.mockReturnValue('signed-jwt');
 
       const result = await authService.login(mockUser);
 
+      expect(tenantService.findById).toHaveBeenCalledWith('tenant-uuid');
       expect(jwtService.sign).toHaveBeenCalledWith(
         expect.objectContaining({
           email: mockUser.email,
           sub: mockUser.id,
           tenantId: mockUser.tenantId,
+          isOwner: true,
           onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
         }),
       );
       expect(result.user).toEqual(
         expect.objectContaining({
+          isOwner: true,
           onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
         }),
       );

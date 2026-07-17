@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "a27d6c65d238ced6",
+        "id": "d94832d56afde22b",
         "type": "tabs",
         "children": [
           {
-            "id": "06461d2837e544ec",
+            "id": "b71934df6ef1784a",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "specs/MATRIZ_TRAZABILIDAD.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "MATRIZ_TRAZABILIDAD"
+              "title": "Nueva pestaña"
             }
           }
         ]
@@ -183,7 +179,7 @@
       "bases:Crear nueva base": false
     }
   },
-  "active": "06461d2837e544ec",
+  "active": "43f1a1d1298096a7",
   "lastOpenFiles": [
     "features/SERVERLESS_ARCHITECTURE.md",
     "specs/FRONTEND_NEXTAUTH_SWR_INTEGRATION.md",

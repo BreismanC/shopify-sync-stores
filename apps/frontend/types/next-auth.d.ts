@@ -13,6 +13,7 @@ declare module "next-auth" {
       name: string;
       tenantId: string | null;
       role: string;
+      isOwner: boolean;
       onboardingStatus: OnboardingStatus;
     } & DefaultSession["user"];
   }
@@ -20,6 +21,7 @@ declare module "next-auth" {
   interface User extends DefaultUser {
     tenantId?: string | null;
     role?: string;
+    isOwner?: boolean;
     accessToken?: string;
     refreshToken?: string;
     onboardingStatus?: OnboardingStatus;
@@ -36,9 +38,11 @@ declare module "next-auth/jwt" {
       name: string;
       tenantId: string | null;
       role: string;
+      isOwner?: boolean;
       onboardingStatus?: OnboardingStatus;
     };
     onboardingStatus?: OnboardingStatus;
+    isOwner?: boolean;
     error?: string;
   }
 }

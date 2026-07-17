@@ -30,7 +30,11 @@ export class TypeORMTeamInvitationRepository implements ITeamInvitationRepositor
     email: string,
     tenantId: string,
   ): Promise<TeamInvitation | null> {
-    return this.repository.findOne({ where: { email, tenantId } });
+    return this.repository
+      .createQueryBuilder('invitation')
+      .where('invitation.tenantId = :tenantId', { tenantId })
+      .andWhere('LOWER(invitation.email) = LOWER(:email)', { email })
+      .getOne();
   }
 
   save(invitation: TeamInvitation): Promise<TeamInvitation> {

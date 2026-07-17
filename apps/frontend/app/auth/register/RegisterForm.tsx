@@ -94,123 +94,120 @@ export function RegisterForm() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-between p-4 sm:p-6 bg-surface">
+    <div className="flex min-h-screen w-full flex-col items-center justify-between p-4 sm:p-6 bg-gray-2">
       <header className="w-full flex justify-center py-6 sm:py-8">
         <a href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-          <div className="h-8 w-8 text-primary">
+          <div className="h-8 w-8 text-accent-9">
              <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.59L7.59 13.17a.996.996 0 1 1 1.41-1.41L11 13.75V7c0-.55.45-1 1-1s1 .45 1 1v6.75l2-2a.996.996 0 1 1 1.41 1.41L13.41 16.59a.996.001 0 0 1 -1.41 0z"></path>
              </svg>
           </div>
-          <span className="text-2xl font-bold text-on-background">SyncShop</span>
+          <span className="text-2xl font-bold text-gray-12">SyncShop</span>
         </a>
       </header>
 
       <main className="flex w-full max-w-md flex-col items-center justify-center">
-        <Card className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-8 shadow-none">
+        <Card className="w-full rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-none">
           <div className="flex flex-col items-center mb-8">
-            <h1 className="text-on-background tracking-tight text-2xl sm:text-3xl font-bold leading-tight text-center font-inter">
+            <h1 className="text-gray-12 tracking-tight text-2xl sm:text-3xl font-bold leading-tight text-center">
               Crea tu cuenta para empezar a sincronizar tus tiendas
             </h1>
           </div>
 
-          <Form onSubmit={onSubmit} ref={formRef} errors={formErrors} className="mt-8 space-y-6">
+          <Form
+            onSubmit={onSubmit}
+            ref={formRef}
+            errors={formErrors}
+            className="mt-8 space-y-6 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_label]:leading-normal [&_label]:pb-2 [&_label]:text-gray-11 [&_[data-slot=input]]:h-12 [&_[data-slot=input]]:bg-gray-3 [&_[data-slot=input]]:border [&_[data-slot=input]]:border-gray-6 [&_[data-slot=input]]:rounded-lg [&_[data-slot=input]]:text-gray-12 [&_[data-slot=input]]:placeholder:text-gray-11 [&_[data-slot=input]]:focus:outline-none [&_[data-slot=input]]:focus:border-accent-9 [&_[data-slot=input]]:focus:ring-2 [&_[data-slot=input]]:focus:ring-accent-9/50"
+          >
             <div className="space-y-4">
               <FormField name="companyName" label="Nombre de la empresa" field={field('companyName')}>
-                <Input 
-                  className="h-12 bg-surface-container-low focus:ring-primary"
-                  placeholder="Introduce el nombre de tu empresa" 
-                />
+                <Input placeholder="Introduce el nombre de tu empresa" />
               </FormField>
 
               <FormField name="name" label="Tu nombre completo" field={field('name')}>
-                <Input 
-                  className="h-12 bg-surface-container-low focus:ring-primary"
-                  placeholder="Introduce tu nombre y apellidos" 
-                />
+                <Input placeholder="Introduce tu nombre y apellidos" />
               </FormField>
 
               <FormField name="email" label="Correo electrónico de trabajo" field={field('email')}>
-                <Input 
-                  type="email" 
-                  className="h-12 bg-surface-container-low focus:ring-primary"
-                  placeholder="ejemplo@empresa.com" 
-                />
+                <Input type="email" placeholder="ejemplo@empresa.com" />
               </FormField>
 
               <FormField name="password" label="Contraseña segura" field={field('password')}>
                 <div className="relative flex w-full items-stretch">
-                  <Input 
-                    type={showPassword ? 'text' : 'password'} 
-                    className="h-12 bg-surface-container-low pr-10 focus:ring-primary"
-                    placeholder="Introduce tu contraseña" 
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    className="pr-10"
+                    placeholder="Introduce tu contraseña"
                   />
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-outline hover:text-on-surface transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-11 hover:text-gray-12 transition-colors"
                     aria-label="Mostrar/Ocultar contraseña"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </FormField>
-              <p className="text-xs text-outline pt-2">
+              <p className="text-xs text-gray-11 pt-2">
                 Mínimo 8 caracteres, una mayúscula y un número.
               </p>
 
               <div className="pt-2">
-                <FormSubmit 
-                  className="w-full h-12 font-semibold text-base shadow-none bg-primary text-white"
+                <FormSubmit
+                  className="w-full h-12 font-semibold text-base bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-9"
                   fetchStatus={fetchStatus}
                   buttonProps={{ label: "Registrarse ahora" }}
-                /> 
+                />
               </div>
             </div>
           </Form>
 
           <div className="mt-8 space-y-4">
             <div className="relative flex items-center">
-              <div className="flex-grow border-t border-outline-variant"></div>
-              <span className="mx-4 flex-shrink text-sm text-on-surface-variant">o</span>
-              <div className="flex-grow border-t border-outline-variant"></div>
+              <div className="flex-grow border-t border-gray-6"></div>
+              <span className="mx-4 flex-shrink text-sm text-gray-11">o</span>
+              <div className="flex-grow border-t border-gray-6"></div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Button 
-                mode="pill" 
-                className="h-12 flex items-center justify-center gap-2 font-semibold text-base" 
+              <Button
+                className="h-12 flex items-center justify-center gap-2 font-semibold text-base bg-gray-1 hover:bg-gray-3 border border-gray- text-gray-12 rounded-lg shadow-sm hover:!transform-none active:!transform-none"
                 type="button"
+                variant="pill"
                 onClick={() => {
                   window.location.href = `${BACKEND_URL}/api/auth/google`;
                 }}
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M22.56 12.25C22.56 11.42 22.49 10.62 22.36 9.85H12.28V14.4H18.24C17.99 15.93 17.23 17.25 16.07 18.09V20.65H19.76C21.58 19.01 22.56 16.03 22.56 12.25Z" fill="#4285F4"></path>
-                  <path d="M12.28 22.9C15.24 22.9 17.7 21.94 19.76 20.65L16.07 18.09C15.08 18.78 13.82 19.23 12.28 19.23H2.3V17.44C4.22 20.73 7.91 22.9 12 22.9s7.91-2.07 17.7 21.94 19.76 20.65L16.07 18.09C15.08 18.78 13.82 19.23 12.28 19.23H2.3V17.44C4.22 20.73 7.91 22.9 12 22.9z" fill="#34A853"></path>
+                  <path d="M12.28 22.9C15.24 22.9 17.7 21.94 19.76 20.65L16.07 18.09C15.08 18.78 13.82 19.23 12.28 19.23C9.44 19.23 6.99 17.34 6.1 14.8H2.3V17.44C4.22 20.73 7.91 22.9 12.28 22.9Z" fill="#34A853"></path>
+                  <path d="M6.1 14.8C5.87 14.12 5.73 13.38 5.73 12.6C5.73 11.82 5.87 11.08 6.1 10.4H2.3V7.76C1.52 9.24 1 10.86 1 12.6C1 14.34 1.52 15.96 2.3 17.44L6.1 14.8Z" fill="#FBBC05"></path>
+                  <path d="M12.28 5.96999C13.92 5.96999 15.35 6.53999 16.51 7.64999L19.83 4.41C17.69 2.44 15.23 1.29999 12.28 1.29999C7.91 1.29999 4.22 3.47 2.3 6.76L6.1 9.4C6.99 6.86 9.44 4.96999 12.28 4.96999V5.96999Z" fill="#EA4335"></path>
                 </svg>
                 Google
               </Button>
-              <Button 
-                mode="pill" 
-                className="h-12 flex items-center justify-center gap-2 font-semibold text-base" 
+              <Button
+                className="h-12 flex items-center justify-center gap-2 font-semibold text-base bg-gray-1 hover:bg-gray-3 border border-gray-3 text-gray-12 rounded-lg shadow-sm hover:!transform-none active:!transform-none"
                 type="button"
+                variant="pill"
                 onClick={() => {
                   window.location.href = `${BACKEND_URL}/api/auth/facebook`;
                 }}
               >
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M24 12.073C24 5.848 18.184 2 12 2S0 5.848 0 12.073C0 18.304 5.816 22 12 22s12-3.696 12-9.927zM12 20.08c-4.35 0-7.873-2.86-8.61-6.53H3.5C4.5 15.5 7.5 17.5 12 17.5s7.5-2 8.5-4.47h-1.89c-.737 3.67-4.26 6.53-8.61 6.53zM12 15.5c-2.33 0-4.304-1.384-5.184-3.44h10.368C16.304 14.116 14.33 15.5 12 15.5zM12 13.44c2.33 0-4.304-1.384-5.184-3.44h-10.368C7.696 12.056 9.67 13.44 12 13.44zM12 11.36c-2.33 0-4.304-1.384-5.184-3.44h10.368C16.304 10.016 14.33 11.36 12 11.36z" />
+                <svg className="h-5 w-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
                 </svg>
                 Facebook
               </Button>
             </div>
 
-            <p className="text-center text-sm text-on-surface-variant mt-6">
+            <p className="text-center text-sm text-gray-11 mt-6">
               ¿Ya tienes cuenta?{' '}
-              <button 
-                type="button" 
-                className="text-primary hover:underline font-semibold"
+              <button
+                type="button"
+                className="text-accent-9 hover:underline font-semibold"
                 onClick={() => router.push('/auth/login')}
               >
                 Inicia sesión

@@ -57,13 +57,32 @@ describe('OnboardingGuard', () => {
     const context = {
       switchToHttp: () => ({
         getRequest: () => ({
-          user: { onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG },
+          user: {
+            isOwner: true,
+            onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+          },
           url: '/api/products',
         }),
       }),
     } as any;
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
+  it('should allow members when tenant is PENDING_TEAM_CONFIG', () => {
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          user: {
+            isOwner: false,
+            onboardingStatus: OnboardingStatus.PENDING_TEAM_CONFIG,
+          },
+          url: '/api/products',
+        }),
+      }),
+    } as any;
+
+    expect(guard.canActivate(context)).toBe(true);
   });
 
   it('should deny access if no user is present', () => {

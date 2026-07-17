@@ -3,19 +3,23 @@ import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
 
 describe('OnboardingService', () => {
   describe('upsertTenant', () => {
-    it('should keep the tenant linked when a user without tenant completes step 1', async () => {
+    it('should advance tenant onboardingStatus when owner completes step 1', async () => {
       const user = {
         id: 'user-uuid',
-        tenantId: null,
-        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
+        tenantId: null as string | null,
       };
       const tenant = {
         id: 'tenant-uuid',
         name: 'Acme Inc',
+        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG,
       };
 
       const userRepository = {
         findById: jest.fn().mockResolvedValue(user),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+      const tenantRepository = {
+        findById: jest.fn().mockResolvedValue(tenant),
         save: jest.fn().mockImplementation(async (entity) => entity),
       };
       const tenantService = {
@@ -24,7 +28,7 @@ describe('OnboardingService', () => {
 
       const service = new OnboardingService(
         userRepository as any,
-        {} as any,
+        tenantRepository as any,
         {} as any,
         {} as any,
         {} as any,
@@ -44,6 +48,10 @@ describe('OnboardingService', () => {
       expect(userRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantId: tenant.id,
+        }),
+      );
+      expect(tenantRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
           onboardingStatus: OnboardingStatus.PENDING_PLAN_SELECTION,
         }),
       );

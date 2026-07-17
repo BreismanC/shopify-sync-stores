@@ -25,6 +25,20 @@ export default async function OnboardingPage({
   )
     ? (session.user!.onboardingStatus as OnboardingStatus)
     : OnboardingStatus.PENDING_TENANT_CONFIG;
+  const isOwner =
+    session.user?.isOwner === true || session.user?.role === "OWNER";
+
+  // El wizard es exclusivo para owners. Un miembro solo entra a la app
+  // cuando el tenant está en paso 5 o completed.
+  if (!isOwner) {
+    if (
+      onboardingStatus === OnboardingStatus.PENDING_TEAM_CONFIG ||
+      onboardingStatus === OnboardingStatus.COMPLETED
+    ) {
+      redirect("/dashboard");
+    }
+    redirect("/unauthorized?reason=team-member-not-invited");
+  }
 
   // Si completó el onboarding, fuera de acá.
   if (onboardingStatus === OnboardingStatus.COMPLETED) {

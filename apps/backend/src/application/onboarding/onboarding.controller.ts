@@ -108,6 +108,12 @@ export class OnboardingController {
     return this.onboardingService.connectStore(req.user.id, body);
   }
 
+  @Post('store/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmStore(@Req() req: RequestWithUser) {
+    return this.onboardingService.confirmStore(req.user.id);
+  }
+
   // ─── Paso 4: Store role ──────────────────────────────────────────────────
 
   @Post('store/role')

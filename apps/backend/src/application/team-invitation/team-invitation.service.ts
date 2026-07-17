@@ -22,7 +22,6 @@ import {
   TeamInvitation,
   InvitationStatus,
 } from '../../domain/entities/team_member.entity';
-import { OnboardingStatus } from '../../domain/enums/onboarding-status.enum';
 import { UserRole } from '../../domain/enums/user-role.enum';
 import { EmailService } from '../../infrastructure/services/email/resend.service';
 
@@ -31,7 +30,12 @@ export const INVITATION_TTL_HOURS = 24;
 export interface CreateInvitationInput {
   email: string;
   name: string;
-  role: string;
+  role?: string;
+}
+
+export interface UpsertInvitationOptions {
+  /** Si true, envía el email de invitación. Default false (solo agrega al equipo). */
+  sendEmail?: boolean;
 }
 
 @Injectable()
@@ -54,23 +58,27 @@ export class TeamInvitationService {
   }
 
   /**
-   * Crea una invitación nueva para un tenant y la envía por email.
-   * Si ya hay una invitación PENDING para el mismo email, la reusa
-   * (regenera el token y la expiración).
+   * Crea o reactiva una invitación PENDING para el tenant.
+   * - Reutiliza filas REVOKED / EXPIRED / PENDING del mismo email (evita 409).
+   * - Solo conflictúa si ya hay un TeamMember activo.
+   * - Por defecto NO envía email (el owner usa "Enviar invitaciones").
    */
   async createAndSend(
     tenantId: string,
     invitedById: string,
     input: CreateInvitationInput,
+    options: UpsertInvitationOptions = {},
   ): Promise<TeamInvitation> {
-    if (!input.email || !input.email.includes('@')) {
+    const sendEmail = options.sendEmail === true;
+    const email = input.email?.trim().toLowerCase();
+    const name = input.name?.trim();
+    const role = (input.role?.trim() || UserRole.MEMBER).toUpperCase();
+
+    if (!email || !email.includes('@')) {
       throw new BadRequestException('Email inválido');
     }
-    if (!input.name) {
+    if (!name) {
       throw new BadRequestException('Nombre requerido');
-    }
-    if (!input.role) {
-      throw new BadRequestException('Rol requerido');
     }
 
     const tenant = await this.tenantRepository.findById(tenantId);
@@ -83,17 +91,38 @@ export class TeamInvitationService {
       throw new NotFoundException('Usuario invitador no encontrado');
     }
 
-    // Verificar que el email no pertenezca a un miembro activo del tenant.
-    const existingUser = await this.userRepository.findByEmail(input.email);
-    if (existingUser && existingUser.tenantId === tenantId) {
-      throw new ConflictException(
-        'Este email ya es miembro activo de este tenant',
+    if (inviter.email?.toLowerCase() === email) {
+      throw new BadRequestException(
+        'No podés invitarte a vos mismo al equipo',
       );
     }
 
-    // Reusar invitación pendiente o crear nueva
+    // Miembro activo (no soft-deleted) → conflicto real
+    const existingUser = await this.userRepository.findByEmail(email);
+    if (existingUser) {
+      const activeMember =
+        await this.teamMemberRepository.findByUserIdAndTenantId(
+          existingUser.id,
+          tenantId,
+        );
+      if (activeMember) {
+        throw new ConflictException(
+          'Este email ya es miembro activo de este espacio de trabajo',
+        );
+      }
+      // Owner del tenant (sin fila en team_members)
+      if (
+        existingUser.tenantId === tenantId &&
+        existingUser.role === UserRole.OWNER
+      ) {
+        throw new ConflictException(
+          'Este email ya es el dueño de este espacio de trabajo',
+        );
+      }
+    }
+
     let invitation = await this.invitationRepository.findByEmailAndTenant(
-      input.email,
+      email,
       tenantId,
     );
 
@@ -101,18 +130,22 @@ export class TeamInvitationService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + INVITATION_TTL_HOURS);
 
-    if (invitation && invitation.status === InvitationStatus.PENDING) {
-      // Reusar
+    if (invitation) {
+      // Reactivar / actualizar la misma fila (PENDING, REVOKED, EXPIRED, ACCEPTED soft-removed)
       invitation.token = token;
       invitation.expiresAt = expiresAt;
-      invitation.name = input.name;
-      invitation.role = input.role;
+      invitation.name = name;
+      invitation.role = role;
+      invitation.status = InvitationStatus.PENDING;
+      invitation.acceptedById = null;
+      invitation.acceptedAt = null;
+      invitation.invitedById = invitedById;
     } else {
       invitation = this.invitationRepository.create({
         tenantId,
-        email: input.email,
-        name: input.name,
-        role: input.role,
+        email,
+        name,
+        role,
         token,
         expiresAt,
         status: InvitationStatus.PENDING,
@@ -122,30 +155,53 @@ export class TeamInvitationService {
 
     const saved = await this.invitationRepository.save(invitation);
 
-    // Enviar email
-    const acceptLink = `${this.frontendUrl}/auth/team-invitation/accept?token=${token}`;
-    try {
-      await this.sendInvitationEmail({
-        to: input.email,
-        inviterName: inviter.name,
-        tenantName: tenant.name,
-        role: input.role,
-        acceptLink,
-        expiresAt,
-      });
-    } catch (err) {
-      this.logger.error(
-        `No se pudo enviar el email de invitación a ${input.email}: ${err}`,
-      );
-      // No fallamos la creación de la invitación si el email rebota;
-      // el owner puede reintentar el envío luego.
+    if (sendEmail) {
+      await this.dispatchInvitationEmail(saved, inviter.name, tenant.name);
     }
 
     return saved;
   }
 
   /**
-   * Acepta una invitación: crea el User (si no existe), crea el TeamMember
+   * Envía (o reenvía) el email de todas las invitaciones PENDING del tenant.
+   */
+  async sendPendingInvites(
+    tenantId: string,
+    invitedById: string,
+  ): Promise<{ sent: number; sentAt: string }> {
+    const tenant = await this.tenantRepository.findById(tenantId);
+    if (!tenant) {
+      throw new NotFoundException('Tenant no encontrado');
+    }
+    const inviter = await this.userRepository.findById(invitedById);
+    if (!inviter) {
+      throw new NotFoundException('Usuario invitador no encontrado');
+    }
+
+    const invitations = await this.invitationRepository.findByTenantId(tenantId);
+    const pending = invitations.filter(
+      (i) =>
+        i.status === InvitationStatus.PENDING &&
+        i.expiresAt.getTime() > Date.now(),
+    );
+
+    let sent = 0;
+    for (const inv of pending) {
+      // Renovar token/expiración al reenviar
+      inv.token = this.generateToken();
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + INVITATION_TTL_HOURS);
+      inv.expiresAt = expiresAt;
+      await this.invitationRepository.save(inv);
+      await this.dispatchInvitationEmail(inv, inviter.name, tenant.name);
+      sent += 1;
+    }
+
+    return { sent, sentAt: new Date().toISOString() };
+  }
+
+  /**
+   * Acepta una invitación: crea el User (si no existe), crea/revive el TeamMember
    * y marca la invitación como ACCEPTED.
    */
   async accept(
@@ -167,7 +223,6 @@ export class TeamInvitationService {
       invitation.status === InvitationStatus.EXPIRED ||
       invitation.expiresAt.getTime() < Date.now()
     ) {
-      // Marcar como expirada si no lo estaba
       if (invitation.status !== InvitationStatus.EXPIRED) {
         invitation.status = InvitationStatus.EXPIRED;
         await this.invitationRepository.save(invitation);
@@ -181,7 +236,6 @@ export class TeamInvitationService {
       );
     }
 
-    // Buscar o crear el User
     let user = await this.userRepository.findByEmail(invitation.email);
     if (!user) {
       const bcrypt = await import('bcrypt');
@@ -192,43 +246,37 @@ export class TeamInvitationService {
         password: hashedPassword,
         tenantId: invitation.tenantId,
         role: UserRole.MEMBER,
-        onboardingStatus: OnboardingStatus.PENDING_TENANT_CONFIG, // ya tiene tenant pero el flow no se completó
       });
       user = await this.userRepository.save(user);
-    } else if (user.tenantId !== invitation.tenantId) {
-      // El user ya existe en otro tenant. No podemos sumarlo a este
-      // automáticamente — debería usar el tenant-selector.
+    } else if (user.tenantId && user.tenantId !== invitation.tenantId) {
       throw new ConflictException(
         'Este email ya está registrado con otro tenant. Iniciá sesión y usá el selector de tenants.',
       );
+    } else if (!user.tenantId) {
+      user.tenantId = invitation.tenantId;
+      user.role = UserRole.MEMBER;
+      user = await this.userRepository.save(user);
     }
 
-    // Verificar que no sea ya miembro
-    const existing = await this.teamMemberRepository.findByUserIdAndTenantId(
-      user.id,
-      invitation.tenantId,
-    );
-    if (existing) {
-      // Ya es miembro: marcar invitación como aceptada y devolver
-      invitation.status = InvitationStatus.ACCEPTED;
-      invitation.acceptedById = user.id;
-      invitation.acceptedAt = new Date();
-      await this.invitationRepository.save(invitation);
-      return {
-        user: { id: user.id, email: user.email },
+    const existing =
+      await this.teamMemberRepository.findByUserIdAndTenantIdWithDeleted(
+        user.id,
+        invitation.tenantId,
+      );
+
+    if (existing?.deletedAt) {
+      existing.role = invitation.role;
+      await this.teamMemberRepository.recover(existing);
+      await this.teamMemberRepository.save(existing);
+    } else if (!existing) {
+      const teamMember = this.teamMemberRepository.create({
+        userId: user.id,
         tenantId: invitation.tenantId,
-      };
+        role: invitation.role,
+      });
+      await this.teamMemberRepository.save(teamMember);
     }
 
-    // Crear TeamMember
-    const teamMember = this.teamMemberRepository.create({
-      userId: user.id,
-      tenantId: invitation.tenantId,
-      role: invitation.role,
-    });
-    await this.teamMemberRepository.save(teamMember);
-
-    // Marcar invitación como aceptada
     invitation.status = InvitationStatus.ACCEPTED;
     invitation.acceptedById = user.id;
     invitation.acceptedAt = new Date();
@@ -241,16 +289,13 @@ export class TeamInvitationService {
   }
 
   /**
-   * Lista invitaciones pendientes y aceptadas del tenant.
+   * Lista invitaciones activas del tenant (excluye REVOKED).
    */
   async listByTenant(tenantId: string): Promise<TeamInvitation[]> {
-    return this.invitationRepository.findByTenantId(tenantId);
+    const all = await this.invitationRepository.findByTenantId(tenantId);
+    return all.filter((i) => i.status !== InvitationStatus.REVOKED);
   }
 
-  /**
-   * Devuelve los datos públicos de una invitación (para mostrar el form
-   * de aceptación). NO expone el token al frontend.
-   */
   async peekByToken(token: string): Promise<{
     valid: boolean;
     reason?: string;
@@ -286,26 +331,35 @@ export class TeamInvitationService {
   }
 
   /**
-   * Revoca una invitación (solo el owner del tenant puede hacerlo).
+   * Soft-delete: marca la invitación como REVOKED y, si ya era miembro,
+   * soft-delete del TeamMember.
    */
   async revoke(tenantId: string, invitationId: string): Promise<void> {
     const invitation = await this.invitationRepository.findById(invitationId);
     if (!invitation || invitation.tenantId !== tenantId) {
       throw new NotFoundException('Invitación no encontrada');
     }
-    if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException(
-        'Solo se pueden revocar invitaciones pendientes',
-      );
+    if (invitation.status === InvitationStatus.REVOKED) {
+      return; // idempotente
     }
+
+    const wasAccepted = invitation.status === InvitationStatus.ACCEPTED;
+    const acceptedById = invitation.acceptedById;
+
     invitation.status = InvitationStatus.REVOKED;
     await this.invitationRepository.save(invitation);
+
+    if (wasAccepted && acceptedById) {
+      const member = await this.teamMemberRepository.findByUserIdAndTenantId(
+        acceptedById,
+        tenantId,
+      );
+      if (member) {
+        await this.teamMemberRepository.softDelete(member);
+      }
+    }
   }
 
-  /**
-   * Marca invitaciones PENDING como EXPIRED si pasó su expiresAt.
-   * Llamado por un cron o al listar.
-   */
   async expireOld(): Promise<number> {
     const now = new Date();
     const expired = await this.invitationRepository.findPendingExpired(now);
@@ -314,20 +368,29 @@ export class TeamInvitationService {
     return expired.length;
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
-
   private generateToken(): string {
     return randomBytes(32).toString('hex');
   }
 
-  private async sendInvitationEmail(params: {
-    to: string;
-    inviterName: string;
-    tenantName: string;
-    role: string;
-    acceptLink: string;
-    expiresAt: Date;
-  }): Promise<void> {
-    await this.emailService.sendTeamInvitationEmail(params);
+  private async dispatchInvitationEmail(
+    invitation: TeamInvitation,
+    inviterName: string,
+    tenantName: string,
+  ): Promise<void> {
+    const acceptLink = `${this.frontendUrl}/auth/team-invitation/accept?token=${invitation.token}`;
+    try {
+      await this.emailService.sendTeamInvitationEmail({
+        to: invitation.email,
+        inviterName,
+        tenantName,
+        role: invitation.role,
+        acceptLink,
+        expiresAt: invitation.expiresAt,
+      });
+    } catch (err) {
+      this.logger.error(
+        `No se pudo enviar el email de invitación a ${invitation.email}: ${err}`,
+      );
+    }
   }
 }

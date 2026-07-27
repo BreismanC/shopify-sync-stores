@@ -26,6 +26,12 @@ export abstract class IStoreConnectionRepository {
     sourceStoreId: string,
     vendorStoreId: string,
   ): Promise<StoreConnection | null>;
+  abstract findActiveBySourceStore(
+    sourceStoreId: string,
+  ): Promise<StoreConnection[]>;
+  abstract findActiveByVendorStore(
+    vendorStoreId: string,
+  ): Promise<StoreConnection[]>;
   abstract create(connection: Partial<StoreConnection>): StoreConnection;
   abstract save(connection: StoreConnection): Promise<StoreConnection>;
   abstract findConnectedByStore(

@@ -10,6 +10,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
+    "dev:worker:isolated": "nest start --watch -p tsconfig.worker.json --entryFile worker",
     "email:dev": "email dev --port 5000",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",

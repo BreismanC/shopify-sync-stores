@@ -49,6 +49,7 @@ export class TeamInvitationService {
     private readonly teamMemberRepository: ITeamMemberRepository,
     @Inject(IUSER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    @Inject(ITenantRepository)
     private readonly tenantRepository: ITenantRepository,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,

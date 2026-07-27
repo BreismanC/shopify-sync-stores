@@ -1,16 +1,26 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { ITenantRepository } from './repositories/ITenantRepository';
+import {
+  ITenantRepository,
+} from './repositories/ITenantRepository';
 import {
   IUSER_REPOSITORY,
   IUserRepository,
 } from '../auth/repositories/IUserRepository';
-import { Tenant } from '../../domain/entities/tenant.entity';
+import {
+  ITENANT_MEMBERSHIP_REPOSITORY,
+} from './repositories/ITenantMembershipRepository';
+import type { ITenantMembershipRepository } from './repositories/ITenantMembershipRepository';
+import type { Tenant } from '../../domain/entities/tenant.entity';
+import type { TenantMembership } from '../../domain/entities/tenant-membership.entity';
 
 @Injectable()
 export class TenantService {
   constructor(
+    @Inject(ITenantRepository)
     private readonly tenantRepository: ITenantRepository,
     @Inject(IUSER_REPOSITORY) private readonly userRepository: IUserRepository,
+    @Inject(ITENANT_MEMBERSHIP_REPOSITORY)
+    private readonly membershipRepository: ITenantMembershipRepository,
   ) {}
 
   async create(name: string): Promise<Tenant> {
@@ -53,5 +63,21 @@ export class TenantService {
     await this.userRepository.save(user);
 
     return tenant;
+  }
+
+  async requireMembership(
+    userId: string,
+    tenantId: string,
+  ): Promise<TenantMembership> {
+    const membership = await this.membershipRepository.findActive(
+      userId,
+      tenantId,
+    );
+    if (!membership) {
+      throw new Error(
+        `El usuario ${userId} no pertenece al tenant ${tenantId}.`,
+      );
+    }
+    return membership;
   }
 }

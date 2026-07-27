@@ -29,6 +29,10 @@ export class TypeORMStoreRepository implements IStoreRepository {
     return this.storeRepository.findOne({ where: { shopifyShopId } });
   }
 
+  async findById(storeId: string): Promise<Store | null> {
+    return this.storeRepository.findOne({ where: { id: storeId } });
+  }
+
   async findByTenantId(tenantId: string): Promise<Store[]> {
     return this.storeRepository.find({ where: { tenantId } });
   }
@@ -43,6 +47,15 @@ export class TypeORMStoreRepository implements IStoreRepository {
       order: 'asc' | 'desc';
     },
   ): Promise<{ data: Store[]; total: number }> {
+    // Defensa en profundidad: aunque el DTO valide sortBy con @IsIn,
+    // nunca concatenamos un identificador controlado por el cliente
+    // directamente en una query SQL. Si llega algo fuera de la lista
+    // blanca, caemos al default seguro.
+    const allowedSort = new Set(['shopifyShopId', 'role', 'createdAt'] as const);
+    const safeSortBy = allowedSort.has(options.sortBy as any)
+      ? options.sortBy
+      : ('createdAt' as const);
+
     const qb = this.storeRepository
       .createQueryBuilder('store')
       .where('store.tenantId = :tenantId', { tenantId })
@@ -64,7 +77,7 @@ export class TypeORMStoreRepository implements IStoreRepository {
     }
 
     qb.orderBy(
-      `store.${options.sortBy}`,
+      `store.${safeSortBy}`,
       options.order.toUpperCase() as 'ASC' | 'DESC',
     )
       .skip((options.page - 1) * options.perPage)

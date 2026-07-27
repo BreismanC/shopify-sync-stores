@@ -19,7 +19,7 @@ export class ListStoresDto {
   perPage?: number = 10;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['shopifyShopId', 'role', 'createdAt'])
   sortBy?: 'shopifyShopId' | 'role' | 'createdAt' = 'createdAt';
 
   @IsOptional()

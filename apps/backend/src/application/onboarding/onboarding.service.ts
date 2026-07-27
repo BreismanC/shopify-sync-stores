@@ -64,7 +64,7 @@ export interface CreatePreferenceInput {
 export class OnboardingService {
   constructor(
     @Inject(IUSER_REPOSITORY) private readonly userRepository: IUserRepository,
-    private readonly tenantRepository: ITenantRepository,
+    @Inject(ITenantRepository) private readonly tenantRepository: ITenantRepository,
     private readonly storeRepository: IStoreRepository,
     private readonly teamMemberRepository: ITeamMemberRepository,
     private readonly subscriptionRepository: ISubscriptionRepository,

@@ -15,7 +15,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
         autoLoadEntities: true, // Esto es clave para la flexibilidad
-        synchronize: true, // SOLO PARA DESARROLLO. En producción usar migraciones.
+        synchronize:
+          (configService.get<string>('NODE_ENV') ?? 'development') === 'development'
+            ? false
+            : false, // Desactivado: la BD ya tiene esquema previo; synchronize:true corrompe enums dependientes.
       }),
     }),
   ],

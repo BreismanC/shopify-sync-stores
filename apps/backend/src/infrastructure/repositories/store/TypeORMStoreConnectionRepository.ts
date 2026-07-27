@@ -28,6 +28,22 @@ export class TypeORMStoreConnectionRepository implements IStoreConnectionReposit
     });
   }
 
+  findActiveBySourceStore(
+    sourceStoreId: string,
+  ): Promise<StoreConnection[]> {
+    return this.repository.find({
+      where: { sourceStoreId, isActive: true },
+    });
+  }
+
+  findActiveByVendorStore(
+    vendorStoreId: string,
+  ): Promise<StoreConnection[]> {
+    return this.repository.find({
+      where: { vendorStoreId, isActive: true },
+    });
+  }
+
   create(connection: Partial<StoreConnection>): StoreConnection {
     return this.repository.create(connection);
   }

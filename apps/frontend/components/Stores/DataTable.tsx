@@ -36,6 +36,13 @@ interface DataTableProps {
   tenantId: string;
   pagination: PaginationMeta;
   isLoading: boolean;
+  /**
+   * `true` cuando ya se completó la primera petición al backend.
+   * Mientras sea `false`, se muestra el skeleton aunque `isLoading`
+   * sea `false` y `stores` esté vacío, evitando el "flash" del
+   * emptyState en el primer render del cliente tras recargar.
+   */
+  hasFetchedOnce?: boolean;
   search: string;
   sortBy: string;
   order: 'asc' | 'desc';
@@ -64,6 +71,7 @@ export default function DataTable({
   tenantId,
   pagination,
   isLoading,
+  hasFetchedOnce = false,
   search,
   sortBy,
   order,
@@ -276,7 +284,7 @@ export default function DataTable({
               ))}
             </thead>
             <tbody>
-              {isLoading ? (
+              {isLoading || !hasFetchedOnce ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr
                     key={`skel-${i}`}

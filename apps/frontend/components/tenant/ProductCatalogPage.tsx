@@ -1,20 +1,135 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { io } from "socket.io-client";
+import { ChevronDown, RefreshCw } from "lucide-react";
 import { BACKEND_URL } from "@/lib/env";
 import { fetchWithAuth, useAuthFetch } from "@/lib/auth/fetch-with-auth";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
+import { ServerPaginationControls } from "@/components/Stores/ServerPaginationControls";
+import type { PaginationMeta } from "@/components/Stores/types";
+
 type Source = { storeId: string; shopifyShopId: string; kind: string; productCount?: number };
-type Product = { id: string; title: string; status?: string; updatedAt?: string; variants?: Array<{ sku?: string; price?: string | number }> };
+type Product = { id: string; title: string; status?: string; updatedAt?: string; images?: unknown; variants?: Array<{ sku?: string; price?: string | number; inventoryQuantity?: number }> };
 type ProductResponse = { data: Product[]; total: number; pagination?: { totalPages: number } };
+type Progress = { batchId?: string; processed: number; total: number; succeeded: number; failed: number; skipped: number; status: string };
+
+const SORT_OPTIONS = [
+  { label: "Nombre A-Z", value: "title:asc" },
+  { label: "Nombre Z-A", value: "title:desc" },
+  { label: "Más recientes", value: "createdAt:desc" },
+  { label: "Más antiguos", value: "createdAt:asc" },
+] as const;
+
+function getProductImage(product: Product) {
+  if (!Array.isArray(product.images)) return "";
+  const image = product.images[0];
+  if (typeof image === "string") return image;
+  if (image && typeof image === "object" && "src" in image) return String((image as { src?: unknown }).src ?? "");
+  return "";
+}
+
 export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
-  const { data: session } = useSession(); const [sourceId, setSourceId] = useState("ALL"); const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const [sortBy, setSortBy] = useState("createdAt"); const [order, setOrder] = useState("desc"); const [selected, setSelected] = useState<string[]>([]); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState("");
-  const { data: sourceResponse, mutate: refreshSources } = useAuthFetch<{ data: Source[] }>(`/api/tenant/${tenantId}/product-sources`);
+  const { data: session } = useSession();
+  const [sourceId, setSourceId] = useState("");
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [progress, setProgress] = useState<Progress | null>(null);
+
+  const { data: sourceResponse } = useAuthFetch<{ data: Source[] }>(`/api/tenant/${tenantId}/product-sources`);
   const sources = sourceResponse?.data ?? [];
-  const endpoint = `/api/tenant/${tenantId}/products?${sourceId === "ALL" ? "" : `sourceStoreId=${sourceId}&`}search=${encodeURIComponent(search)}&page=${page}&perPage=20&sortBy=${sortBy}&order=${order}`;
-  const { data, mutate, isLoading } = useAuthFetch<ProductResponse>(endpoint); const products = data?.data ?? []; const totalPages = data?.pagination?.totalPages ?? Math.max(1, Math.ceil((data?.total ?? 0) / 20));
-  useEffect(() => { if (!session?.accessToken) return; const socket = io(`${BACKEND_URL}/sync`, { auth: { token: session.accessToken }, transports: ["websocket", "polling"] }); socket.on("sync.batch.progress", (e: { status?: string; processed?: number; total?: number }) => { if (e.status === "COMPLETED" || e.status === "FAILED") { setNotice(`Sincronización finalizada: ${e.processed ?? 0}/${e.total ?? 0}.`); void mutate(); } }); return () => { socket.disconnect(); }; }, [session?.accessToken, mutate]);
-  async function post(path: string, body?: object) { setBusy(true); try { await fetchWithAuth(path, { method: "POST", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined }, session?.accessToken); setNotice("Operación encolada correctamente."); setSelected([]); void mutate(); void refreshSources(); } catch (e) { setNotice(e instanceof Error ? e.message : "No fue posible completar la operación."); } finally { setBusy(false); } }
-  const sourceName = sources.find((s) => s.storeId === sourceId)?.shopifyShopId ?? "Todas las tiendas"; const allSelected = products.length > 0 && products.every((p) => selected.includes(p.id));
-  return <main className="mx-auto max-w-[1500px] space-y-6 p-6 text-slate-900"><header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-widest text-[#137fec]">Catálogo</p><h1 className="mt-1 text-3xl font-bold">Productos</h1><p className="mt-1 text-slate-500">Administra y sincroniza los productos de tus tiendas conectadas.</p></div><div className="flex gap-2"><button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold" disabled={busy || sourceId === "ALL"} onClick={() => post(`/api/tenant/${tenantId}/product-sources/${sourceId}/refresh`)}>Actualizar catálogo</button><button className="rounded-lg bg-[#137fec] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={busy || sourceId === "ALL"} onClick={() => post(`/api/tenant/${tenantId}/sync-batches`, { sourceStoreId: sourceId, productIds: selected })}>Sincronizar{selected.length ? ` (${selected.length})` : ""}</button></div></header>{notice && <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">{notice}</div>}<section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap gap-3"><select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={sourceId} onChange={(e) => { setSourceId(e.target.value); setPage(1); setSelected([]); }}><option value="ALL">Todas las tiendas</option>{sources.map((s) => <option key={s.storeId} value={s.storeId}>{s.shopifyShopId} · {s.kind === "CONNECTED" ? "conectada" : "propia"}</option>)}</select><input className="min-w-[250px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nombre o SKU..." /><select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={`${sortBy}:${order}`} onChange={(e) => { const [a, b] = e.target.value.split(":"); setSortBy(a); setOrder(b); }}><option value="createdAt:desc">Más recientes</option><option value="createdAt:asc">Más antiguos</option><option value="title:asc">Nombre A-Z</option><option value="title:desc">Nombre Z-A</option></select></div><p className="mt-5 text-sm text-slate-500">Catálogo: <b className="text-slate-800">{sourceName}</b> · {data?.total ?? 0} productos</p></section><section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">{isLoading ? <div className="p-10 text-center text-slate-500">Cargando productos…</div> : !products.length ? <div className="p-14 text-center text-slate-500">No hay productos para mostrar.</div> : <table className="w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="w-12 px-4 py-3"><input type="checkbox" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? products.map((p) => p.id) : [])} /></th><th className="px-4 py-3">Producto</th><th className="px-4 py-3">SKU / variantes</th><th className="px-4 py-3">Precio</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Actualizado</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((p) => <tr key={p.id}><td className="px-4 py-4"><input type="checkbox" checked={selected.includes(p.id)} onChange={(e) => setSelected((v) => e.target.checked ? [...v, p.id] : v.filter((id) => id !== p.id))} /></td><td className="px-4 py-4 font-semibold">{p.title}<div className="text-xs font-normal text-slate-400">{p.id}</div></td><td className="px-4 py-4">{p.variants?.[0]?.sku ?? "—"} · {p.variants?.length ?? 0}</td><td className="px-4 py-4">{p.variants?.[0]?.price ?? "—"}</td><td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{p.status ?? "ACTIVO"}</span></td><td className="px-4 py-4 text-slate-500">{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("es-CO") : "—"}</td></tr>)}</tbody></table>}<div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-500"><span>Página {page} de {totalPages}</span><div className="flex gap-2"><button className="rounded border px-3 py-1 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><button className="rounded border px-3 py-1 disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div></div></section></main>;
+  useEffect(() => {
+    if (!sourceId && sources.length) setSourceId(sources[0].storeId);
+  }, [sourceId, sources]);
+
+  const productsEndpoint = sourceId ? `/api/tenant/${tenantId}/products?sourceStoreId=${sourceId}&page=${page}&perPage=20&sortBy=${sortBy}&order=${order}` : null;
+  const { data, mutate, isLoading } = useAuthFetch<ProductResponse>(productsEndpoint);
+  const { data: activeBatch } = useAuthFetch<Progress | null>(sourceId ? `/api/tenant/${tenantId}/sync-batches/active?sourceStoreId=${sourceId}` : null);
+  const products = data?.data ?? [];
+  const totalPages = data?.pagination?.totalPages ?? Math.max(1, Math.ceil((data?.total ?? 0) / 20));
+  const activeSource = useMemo(() => sources.find((source) => source.storeId === sourceId), [sourceId, sources]);
+  const allSelected = products.length > 0 && products.every((product) => selected.includes(product.id));
+  const isRunning = progress?.status === "RUNNING" || progress?.status === "PENDING" || activeBatch?.status === "RUNNING" || activeBatch?.status === "PENDING";
+  const pagination: PaginationMeta = { page, perPage: 20, total: data?.total ?? 0, lastPage: totalPages, totalPages };
+  const currentSort = `${sortBy}:${order}`;
+  const currentSortLabel = SORT_OPTIONS.find((option) => option.value === currentSort)?.label ?? "Más recientes";
+
+  useEffect(() => {
+    if (activeBatch && activeBatch.status !== "COMPLETED" && activeBatch.status !== "FAILED") setProgress(activeBatch);
+  }, [activeBatch]);
+
+  useEffect(() => {
+    if (!session?.accessToken) return;
+    const socket = io(`${BACKEND_URL}/sync`, { auth: { token: session.accessToken }, transports: ["websocket", "polling"] });
+    socket.on("sync.batch.progress", (event: Progress) => {
+      setProgress(event);
+      if (event.status === "COMPLETED" || event.status === "FAILED") {
+        setNotice(`Sincronización finalizada: ${event.processed}/${event.total} procesados.`);
+        void mutate();
+      }
+    });
+    return () => { socket.disconnect(); };
+  }, [mutate, session?.accessToken]);
+
+  async function synchronize(input?: string[] | unknown) {
+    if (!sourceId) return;
+    const productIds = Array.isArray(input) ? input : selected;
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetchWithAuth<{ id?: string; total?: number }>(`/api/tenant/${tenantId}/sync-batches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceStoreId: sourceId, productIds }) }, session?.accessToken);
+      setProgress({ batchId: response.id, processed: 0, total: response.total ?? productIds.length, succeeded: 0, failed: 0, skipped: 0, status: "RUNNING" });
+      setSelected([]);
+      setNotice("Sincronización iniciada. El progreso se actualizará en tiempo real.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No fue posible iniciar la sincronización.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="p-12 space-y-8">
+      <header className="flex flex-col sm:flex-row flex-wrap justify-between items-start gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Productos</h1>
+          <p className="text-base font-normal text-gray-500">Sincroniza y administra tu inventario.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select className="flex h-10 min-w-64 shrink-0 items-center rounded-lg border-none bg-gray-100 px-4 text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-[#137fec]/50" value={sourceId} onChange={(event) => { setSourceId(event.target.value); setPage(1); setSelected([]); }} aria-label="Seleccionar tienda">
+            <option value="" disabled>Seleccionar tienda</option>
+            {sources.map((source) => <option key={source.storeId} value={source.storeId}>{source.shopifyShopId} · {source.kind === "CONNECTED" ? "conectada" : "propia"}</option>)}
+          </select>
+          <button type="button" className="flex h-10 items-center justify-center rounded-lg bg-[#137fec] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#137fec]/90 disabled:cursor-not-allowed disabled:opacity-50" disabled={!sourceId || busy} onClick={() => void synchronize()}>{busy ? "Iniciando…" : "Sincronizar"}</button>
+        </div>
+      </header>
+
+      {progress && <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${isRunning ? "border-orange-300 bg-orange-500/10 text-orange-700" : progress.status === "FAILED" ? "border-red-300 bg-red-500/10 text-red-700" : "border-emerald-300 bg-emerald-500/10 text-emerald-700"}`}><span className={isRunning ? "animate-spin" : ""}>⟳</span>{isRunning ? `Sincronizando ${progress.processed}/${progress.total}` : `Sincronización ${progress.status === "FAILED" ? "con errores" : "completada"}`}<span className="text-xs">· {progress.succeeded} exitosos · {progress.failed} fallidos · {progress.skipped} omitidos</span></div>}
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-500/10 px-4 py-3 text-sm text-blue-700">{notice}</div>}
+
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+        <div className="flex flex-col md:flex-row justify-between gap-4 p-4 border-b border-gray-200">
+          <div className="flex items-center gap-3 text-sm text-gray-500"><span className="font-medium text-gray-700">{activeSource?.shopifyShopId ?? "Tienda"}</span><span>·</span><span>{data?.total ?? 0} productos</span><button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800" onClick={() => void mutate()} aria-label="Actualizar productos"><RefreshCw className="size-4" /></button></div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><button type="button" className="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"><span>Orden: {currentSortLabel}</span><ChevronDown className="size-4 text-gray-400" /></button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{SORT_OPTIONS.map((option) => <DropdownMenuItem key={option.value} onSelect={() => { const [sort, direction] = option.value.split(":"); setSortBy(sort); setOrder(direction as "asc" | "desc"); setPage(1); }}>{option.label}</DropdownMenuItem>)}</DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-gray-600">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50"><tr><th className="w-14 px-6 py-3 font-semibold tracking-wide text-xs leading-5"><input type="checkbox" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? products.map((product) => product.id) : [])} /></th><th className="px-6 py-3 font-semibold tracking-wide text-xs leading-5">Producto</th><th className="px-6 py-3 font-semibold tracking-wide text-xs leading-5">Inventario</th><th className="px-6 py-3 font-semibold tracking-wide text-xs leading-5">Estado</th><th className="px-6 py-3 font-semibold tracking-wide text-xs leading-5">SKU / variantes</th><th className="px-6 py-3 text-right font-semibold tracking-wide text-xs leading-5">Acciones</th></tr></thead>
+            <tbody>{isLoading ? Array.from({ length: 4 }).map((_, index) => <tr key={index} className="bg-white border-b border-gray-200"><td colSpan={6} className="px-6 py-4"><Skeleton className="h-6 w-full" /></td></tr>) : products.length ? products.map((product) => { const image = getProductImage(product); const inventory = product.variants?.reduce((sum, variant) => sum + Number(variant.inventoryQuantity ?? 0), 0) ?? 0; return <tr key={product.id} className="bg-white border-b border-gray-200 transition-colors hover:bg-gray-50"><td className="px-6 py-4 whitespace-nowrap"><input type="checkbox" checked={selected.includes(product.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} /></td><td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-3"><div className="flex size-10 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50">{image ? <img src={image} alt="" className="h-full w-full object-cover" /> : <span className="text-xs text-gray-400">IMG</span>}</div><div><span className="font-medium text-gray-900 text-sm">{product.title}</span><span className="block text-xs text-gray-500">{product.id}</span></div></div></td><td className="px-6 py-4 whitespace-nowrap">{inventory} para {product.variants?.length ?? 0} variante{product.variants?.length === 1 ? "" : "s"}</td><td className="px-6 py-4 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />{product.status ?? "Sincronizado"}</span></td><td className="px-6 py-4 whitespace-nowrap">{product.variants?.[0]?.sku ?? "—"} · {product.variants?.length ?? 0}</td><td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center justify-end gap-2"><button type="button" className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100" onClick={() => void synchronize([product.id])}>Sincronizar</button></div></td></tr>; }) : <tr><td colSpan={6} className="px-6 py-16 text-center text-sm text-gray-500">No hay productos para esta tienda.</td></tr>}</tbody>
+          </table>
+        </div>
+        <ServerPaginationControls pagination={pagination} currentPage={page} onPageChange={setPage} />
+      </div>
+    </div>
+  );
 }

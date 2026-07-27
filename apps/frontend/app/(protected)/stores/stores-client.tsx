@@ -14,17 +14,16 @@ import type { CurrentStore } from "@/lib/store/current";
 
 export type { ConnectionRow } from "@/components/Stores/types";
 
-interface CurrentStoreResponse {
-  store: CurrentStore | null;
-}
-
 export interface StoresClientProps {
   currentStore: CurrentStore | null;
   tenantId: string;
 }
 
-export default function StoresClient({ currentStore, tenantId }: StoresClientProps) {
-  const { data: session } = useSession();
+export default function StoresClient({
+  currentStore,
+  tenantId,
+}: StoresClientProps) {
+  const { data: session, status: sessionStatus } = useSession();
   const accessToken = session?.accessToken;
 
   const [stores, setStores] = useState<ConnectionRow[]>([]);
@@ -35,12 +34,13 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
     lastPage: 1,
     totalPages: 1,
   });
-  const [isLoading, setIsLoading] = useState(false);
+  // Arranca en `true` para mostrar skeleton desde el primer paint.
+  const [isLoading, setIsLoading] = useState(true);
+  // Evita el flash del emptyState antes de la primera respuesta.
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
 
   // El endpoint es `/api/stores/connections`, así que `sortBy` se valida
   // con `ListConnectionsDto` (whitelist: 'connectedAt' | 'isActive').
-  // `connectedAt` es el valor que ya usa el `DataTable` por default
-  // ("Más recientes") y el que el repo soporta.
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"connectedAt" | "isActive">(
     "connectedAt",
@@ -50,7 +50,12 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
   const [perPage] = useState(10);
 
   const fetchStores = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setIsLoading(false);
+      setHasFetchedOnce(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -106,16 +111,22 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
       setStores([]);
     } finally {
       setIsLoading(false);
+      setHasFetchedOnce(true);
     }
   }, [accessToken, currentStore, search, page, perPage, sortBy, order]);
 
   useEffect(() => {
-    if (!accessToken) return;
+    // Espera a que NextAuth termine de hidratarse.
+    if (sessionStatus === "loading") return;
+
+    // Debounce de búsqueda/filtros; además evita setState síncrono
+    // dentro del cuerpo del effect (react-hooks/set-state-in-effect).
     const timer = setTimeout(() => {
-      fetchStores();
+      void fetchStores();
     }, 300);
+
     return () => clearTimeout(timer);
-  }, [fetchStores, accessToken]);
+  }, [sessionStatus, fetchStores]);
 
   const handleSearchChange = (v: string) => {
     setSearch(v);
@@ -126,9 +137,6 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
     newSortBy: "connectedAt" | "isActive" | string,
     newOrder: "asc" | "desc",
   ) => {
-    // El endpoint `/api/stores/connections` solo acepta
-    // `sortBy` ∈ { 'connectedAt', 'isActive' }. Cualquier otro valor
-    // se ignora silenciosamente y se cae al default.
     const allowed: Array<"connectedAt" | "isActive"> = [
       "connectedAt",
       "isActive",
@@ -149,7 +157,7 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
 
   const handleRefetch = useCallback(() => {
     setPage(1);
-    fetchStores();
+    void fetchStores();
   }, [fetchStores]);
 
   return (
@@ -158,6 +166,7 @@ export default function StoresClient({ currentStore, tenantId }: StoresClientPro
       tenantId={tenantId}
       pagination={pagination}
       isLoading={isLoading}
+      hasFetchedOnce={hasFetchedOnce}
       search={search}
       sortBy={sortBy}
       order={order}

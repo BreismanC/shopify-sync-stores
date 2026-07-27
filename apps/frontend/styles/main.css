@@ -450,7 +450,7 @@
   }
   .button-menu {
     font-weight: bold;
-    padding: calc(var(--aura) * 0.5) var(--aura);
+    padding: calc(var(--aura) * 0.5) 15px;
     border: 0;
     text-decoration: none;
   }

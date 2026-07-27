@@ -145,7 +145,7 @@ export function AppSidebar({ profile }: AppSidebarProps) {
     >
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <SidebarHeader className="flex flex-row justify-start items-center px-1.5">
+          <SidebarHeader className="flex flex-row justify-start items-center">
             <SidebarTrigger />
             <Image
               src="/logo-syncio.svg"

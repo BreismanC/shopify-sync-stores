@@ -43,10 +43,30 @@ export function AppSidebar({ profile }: AppSidebarProps) {
     tenantId ? tenantPath(tenantId, url) : url;
 
   const isActive = (url: string) => {
+    if (!pathname) return false;
     const resolved = resolveUrl(url);
-    if (pathname === resolved) return true;
-    if (url === "/dashboard") return false;
-    return pathname?.startsWith(`${resolved}/`) ?? false;
+
+    if (pathname === url || pathname === resolved) return true;
+
+    if (
+      url === "/stores" &&
+      (pathname === "/dashboard/stores" || pathname.endsWith("/stores"))
+    ) {
+      return true;
+    }
+
+    const cleanPath = pathname.replace(/^\/tenant\/[^/]+/, "");
+    const cleanUrl = url.replace(/^\/dashboard/, "") || "/dashboard";
+    const normalizedPath =
+      cleanPath.replace(/^\/dashboard/, "") || "/dashboard";
+
+    if (cleanUrl === "/dashboard") {
+      return normalizedPath === "/dashboard";
+    }
+
+    return (
+      normalizedPath === cleanUrl || normalizedPath.startsWith(`${cleanUrl}/`)
+    );
   };
 
   const items = useMenuItems(profile);
@@ -140,11 +160,12 @@ export function AppSidebar({ profile }: AppSidebarProps) {
             <SidebarGroupContent className="relative">
               <SidebarMenu>
                 {menuItems.map((item) => {
+                  const active = isActive(item.url);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         asChild
-                        isActive={false}
+                        isActive={active}
                         tooltip={isCollapsed ? item.title : undefined}
                       >
                         <Link href={resolveUrl(item.url)}>
@@ -152,12 +173,14 @@ export function AppSidebar({ profile }: AppSidebarProps) {
                             mode="menu"
                             className={cn(
                               "gap-1 w-full h-3 font-medium transition-all",
-                              "justify-start",
-                              "text-foreground",
+                              "!justify-start text-left",
+                              active
+                                ? "bg-[var(--accent-9)] text-white"
+                                : "text-foreground",
                             )}
                             isDisabled={item.isDisabled}
                           >
-                            <item.icon className="icon size-2" />
+                            <item.icon className="icon size-2 shrink-0" />
                             {!isCollapsed && <span>{item.title}</span>}
                           </Button>
                         </Link>
@@ -192,14 +215,13 @@ export function AppSidebar({ profile }: AppSidebarProps) {
                               mode="menu"
                               className={cn(
                                 "gap-1 w-full h-3 font-medium transition-all",
-                                "justify-start",
-                                "text-primary-foreground",
-                                "bg-primary",
+                                "!justify-start text-left",
+                                "text-white bg-[var(--accent-9)]",
                               )}
                               isDisabled={item.isDisabled}
                               tabIndex={-1}
                             >
-                              <item.icon className="icon size-2" />
+                              <item.icon className="icon size-2 shrink-0" />
                               {!isCollapsed && <span>{item.title}</span>}
                             </Button>
                           </Link>
@@ -218,9 +240,9 @@ export function AppSidebar({ profile }: AppSidebarProps) {
               <Button
                 mode="menu"
                 className={cn(
-                  "gap-1 w-full h-2 font-medium transition-all justify-start",
+                  "gap-1 w-full h-2 font-medium transition-all !justify-start text-left",
                   "text-foreground",
-                  isCollapsed && "justify-center",
+                  isCollapsed && "!justify-center",
                 )}
                 isDisabled={notificationsItem.isDisabled}
                 onClick={() => {
@@ -229,7 +251,7 @@ export function AppSidebar({ profile }: AppSidebarProps) {
                 }}
               >
                 <div className="relative flex items-start">
-                  <notificationsItem.icon className="icon" />
+                  <notificationsItem.icon className="icon shrink-0" />
                   {unread > 0 && (
                     <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-accent-9 px-1 text-[10px] leading-4 text-white">
                       {unread > 99 ? "99+" : unread}

@@ -71,4 +71,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   findPayout(tenantId: string, id: string) {
     return this.payouts.findOne({ where: { tenantId, id } });
   }
+  findPayoutByOrder(tenantId: string, syncedOrderId: string) {
+    return this.payouts.findOne({ where: { tenantId, syncedOrderId } });
+  }
 }

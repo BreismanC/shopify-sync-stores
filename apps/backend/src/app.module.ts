@@ -13,6 +13,7 @@ import { TeamInvitationModule } from './application/team-invitation/team-invitat
 import { OnboardingModule } from './application/onboarding/onboarding.module';
 import { MercadoPagoModule } from './infrastructure/mercadopago/mercadopago.module';
 import { EmailModule } from './infrastructure/services/email/email.module';
+import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { EmailModule } from './infrastructure/services/email/email.module';
     OnboardingModule,
     MercadoPagoModule,
     EmailModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

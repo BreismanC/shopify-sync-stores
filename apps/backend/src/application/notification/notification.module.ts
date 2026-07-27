@@ -11,9 +11,15 @@ import {
 } from './notification.use-cases';
 import { NotificationController } from './notification.controller';
 import { INotificationRepository } from './repositories/notification.repository';
+import { RealtimeModule } from '../../infrastructure/realtime/realtime.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification]), AuthModule, TenantModule],
+  imports: [
+    TypeOrmModule.forFeature([Notification]),
+    AuthModule,
+    TenantModule,
+    RealtimeModule,
+  ],
   controllers: [NotificationController],
   providers: [
     TypeOrmNotificationRepository,

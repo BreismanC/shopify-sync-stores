@@ -10,12 +10,16 @@ import { StoreController } from './store.controller';
 import { StoreConnectionService } from './store-connection.service';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../../infrastructure/services/email/email.module';
+import { NotificationModule } from '../notification/notification.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Store, StoreConnection]),
     forwardRef(() => AuthModule),
     forwardRef(() => EmailModule),
+    NotificationModule,
+    forwardRef(() => TenantModule),
   ],
   controllers: [StoreController],
   providers: [

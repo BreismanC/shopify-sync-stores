@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { apiFetch } from '@/lib/auth/fetch-with-auth';
-import { BACKEND_URL } from '@/lib/env';
-import DataTable from '@/components/Stores/DataTable';
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/auth/fetch-with-auth";
+import { BACKEND_URL } from "@/lib/env";
+import DataTable from "@/components/Stores/DataTable";
 import type {
   ConnectionRow,
   PaginationMeta,
   StoreConnectionListResponse,
-} from '@/components/Stores/types';
-import type { CurrentStore } from '@/lib/store/current';
+} from "@/components/Stores/types";
+import type { CurrentStore } from "@/lib/store/current";
 
-export type { ConnectionRow } from '@/components/Stores/types';
+export type { ConnectionRow } from "@/components/Stores/types";
 
 interface CurrentStoreResponse {
   store: CurrentStore | null;
@@ -36,9 +36,15 @@ export default function StoresClient({ currentStore }: StoresClientProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('connectedAt');
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  // El endpoint es `/api/stores/connections`, así que `sortBy` se valida
+  // con `ListConnectionsDto` (whitelist: 'connectedAt' | 'isActive').
+  // `connectedAt` es el valor que ya usa el `DataTable` por default
+  // ("Más recientes") y el que el repo soporta.
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"connectedAt" | "isActive">(
+    "connectedAt",
+  );
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [perPage] = useState(10);
 
@@ -53,29 +59,54 @@ export default function StoresClient({ currentStore }: StoresClientProps) {
         sortBy,
         order,
       });
-      const url = `${BACKEND_URL}/api/stores?${params.toString()}`;
+      const url = `${BACKEND_URL}/api/stores/connections?${params.toString()}`;
       const res = await apiFetch<StoreConnectionListResponse>(
         url,
-        { method: 'GET' },
+        { method: "GET" },
         accessToken,
       );
-      setStores(res.data ?? []);
+      const connectedStores = res.data ?? [];
+      const matchesOwnStore = currentStore
+        ? currentStore.shopifyShopId
+            .toLowerCase()
+            .includes(search.trim().toLowerCase())
+        : false;
+      const ownStore: ConnectionRow | null =
+        currentStore && matchesOwnStore
+          ? {
+              id: `own-${currentStore.id}`,
+              storeId: currentStore.id,
+              shopifyShopId: currentStore.shopifyShopId,
+              role: currentStore.role,
+              isActive: currentStore.isActive,
+              status: "ACTIVE",
+              connectedAt: null,
+              isInitiator: false,
+              isOwn: true,
+            }
+          : null;
+      setStores(ownStore ? [ownStore, ...connectedStores] : connectedStores);
       setPagination(
-        res.pagination ?? {
-          total: 0,
-          page: 1,
-          perPage,
-          lastPage: 1,
-          totalPages: 1,
-        },
+        res.pagination
+          ? {
+              ...res.pagination,
+              total: res.pagination.total + (ownStore ? 1 : 0),
+            }
+          : {
+              total: 0,
+              page: 1,
+              perPage,
+              lastPage: 1,
+              totalPages: 1,
+            },
       );
     } catch (err) {
-      console.error('Error fetching stores:', err);
+      console.error("Error fetching stores:", err);
       setStores([]);
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, search, page, perPage, sortBy, order]);
+  }, [accessToken, currentStore, search, page, perPage, sortBy, order]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -91,10 +122,22 @@ export default function StoresClient({ currentStore }: StoresClientProps) {
   };
 
   const handleSortChange = (
-    newSortBy: string,
-    newOrder: 'asc' | 'desc',
+    newSortBy: "connectedAt" | "isActive" | string,
+    newOrder: "asc" | "desc",
   ) => {
-    setSortBy(newSortBy);
+    // El endpoint `/api/stores/connections` solo acepta
+    // `sortBy` ∈ { 'connectedAt', 'isActive' }. Cualquier otro valor
+    // se ignora silenciosamente y se cae al default.
+    const allowed: Array<"connectedAt" | "isActive"> = [
+      "connectedAt",
+      "isActive",
+    ];
+    const safeSortBy = allowed.includes(
+      newSortBy as "connectedAt" | "isActive",
+    )
+      ? (newSortBy as "connectedAt" | "isActive")
+      : "connectedAt";
+    setSortBy(safeSortBy);
     setOrder(newOrder);
     setPage(1);
   };

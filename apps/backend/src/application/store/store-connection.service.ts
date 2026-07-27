@@ -19,6 +19,11 @@ import {
   StoreConnectionListItem,
 } from './repositories/IStoreConnectionRepository';
 import { EmailService } from '../../infrastructure/services/email/resend.service';
+import { CreateNotificationUseCase } from '../notification/notification.use-cases';
+import { IUSER_REPOSITORY } from '../auth/repositories/IUserRepository';
+import type { IUserRepository } from '../auth/repositories/IUserRepository';
+import { ITENANT_MEMBERSHIP_REPOSITORY } from '../tenant/repositories/ITenantMembershipRepository';
+import type { ITenantMembershipRepository } from '../tenant/repositories/ITenantMembershipRepository';
 
 export interface ConnectByStoreKeyInput {
   storeKey: string;
@@ -70,6 +75,11 @@ export class StoreConnectionService {
     @Inject('ISTORE_CONNECTION_REPOSITORY')
     private readonly connectionRepository: IStoreConnectionRepository,
     private readonly emailService: EmailService,
+    private readonly createNotification?: CreateNotificationUseCase,
+    @Inject(IUSER_REPOSITORY)
+    private readonly userRepository?: IUserRepository,
+    @Inject(ITENANT_MEMBERSHIP_REPOSITORY)
+    private readonly membershipRepository?: ITenantMembershipRepository,
   ) {}
 
   async getCurrentStore(tenantId: string | null | undefined): Promise<Store> {
@@ -233,6 +243,14 @@ export class StoreConnectionService {
       });
     }
 
+    const recipient = await this.resolveEmailRecipient(email, user.tenantId);
+    if (!recipient) {
+      throw new BadRequestException({
+        code: 'RECIPIENT_NOT_IN_TENANT',
+        message: 'El correo debe pertenecer a un miembro u owner de un tenant.',
+      });
+    }
+
     await this.emailService.sendStoreConnectionKeyEmail({
       to: email,
       senderName: user.name ?? user.email,
@@ -241,7 +259,44 @@ export class StoreConnectionService {
       storeKey: current.storeKey,
     });
 
+    await this.createNotification?.execute({
+      tenantId: recipient.tenantId,
+      userId: recipient.user.id,
+      type: 'STORE_CONNECTION_KEY_RECEIVED',
+      title: 'Nueva solicitud de conexión',
+      message: `${current.shopifyShopId} quiere conectar su tienda contigo.`,
+      payload: {
+        storeKey: current.storeKey,
+        shopifyShopId: current.shopifyShopId,
+        role: current.role,
+      },
+      eventId: `store-connection-key:${current.id}:${recipient.user.id}:${current.storeKey}`,
+    });
+
     return { message: 'Store key enviada correctamente.' };
+  }
+
+  private async resolveEmailRecipient(
+    email: string,
+    fallbackTenantId: string | null,
+  ): Promise<{ user: User; tenantId: string } | null> {
+    if (
+      !this.userRepository ||
+      typeof this.userRepository.findByEmail !== 'function'
+    ) {
+      return fallbackTenantId
+        ? { user: { id: email } as User, tenantId: fallbackTenantId }
+        : null;
+    }
+    const recipient = await this.userRepository.findByEmail(
+      email.trim().toLowerCase(),
+    );
+    if (!recipient) return null;
+    const memberships = this.membershipRepository
+      ? await this.membershipRepository.findActiveByUserId(recipient.id)
+      : [];
+    const tenantId = memberships[0]?.tenantId ?? recipient.tenantId;
+    return tenantId ? { user: recipient, tenantId } : null;
   }
 
   async disconnect(

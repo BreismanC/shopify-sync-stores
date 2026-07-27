@@ -1,35 +1,30 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import {
-  KeyRound,
-  Mail,
-  ArrowLeft,
-  CheckCircle2,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import * as React from "react";
+import { KeyRound, Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
-import { useSession } from 'next-auth/react';
-import { apiFetch } from '@/lib/auth/fetch-with-auth';
-import { BACKEND_URL } from '@/lib/env';
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/auth/fetch-with-auth";
+import { BACKEND_URL } from "@/lib/env";
 
-import DialogModal from '@/components/DialogModal';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Form, FormField, FormSubmit } from '@/components/ui/Form';
-import { useFormDynamic } from '@/hooks/use-dynamic-form';
+import DialogModal from "@/components/DialogModal";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Form, FormField, FormSubmit } from "@/components/ui/Form";
+import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import {
   connectByStoreKeySchema,
   inviteByEmailSchema,
-} from '@/schemas/store-connection';
-import { validateFormData } from '@/utils/web-validation';
-import type { CurrentStore } from '@/lib/store/current';
+} from "@/schemas/store-connection";
+import { validateFormData } from "@/utils/web-validation";
+import type { CurrentStore } from "@/lib/store/current";
 import type {
   InviteByEmailResponse,
   StoreConnectionCreateResponse,
-} from './types';
+} from "./types";
 
-type View = 'choice' | 'email' | 'key';
+type View = "choice" | "email" | "key";
 
 interface ConnectStoreDialogProps {
   open: boolean;
@@ -38,8 +33,8 @@ interface ConnectStoreDialogProps {
   onConnected: () => void;
 }
 
-function counterpartyLabel(role: 'SOURCE' | 'VENDOR'): string {
-  return role === 'SOURCE' ? 'Vendor' : 'Source';
+function counterpartyLabel(role: "SOURCE" | "VENDOR"): string {
+  return role === "SOURCE" ? "Vendor" : "Source";
 }
 
 export function ConnectStoreDialog({
@@ -50,15 +45,15 @@ export function ConnectStoreDialog({
 }: ConnectStoreDialogProps) {
   const { data: session } = useSession();
   const accessToken = session?.accessToken;
-  const role = (currentStore?.role ?? 'SOURCE') as 'SOURCE' | 'VENDOR';
+  const role = (currentStore?.role ?? "SOURCE") as "SOURCE" | "VENDOR";
 
-  const [view, setView] = React.useState<View>('choice');
+  const [view, setView] = React.useState<View>("choice");
   const [inviteSuccess, setInviteSuccess] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) {
       const t = setTimeout(() => {
-        setView('choice');
+        setView("choice");
         setInviteSuccess(false);
       }, 200);
       return () => clearTimeout(t);
@@ -71,14 +66,14 @@ export function ConnectStoreDialog({
   }, [onOpenChange]);
 
   const titles: Record<View, string> = {
-    choice: 'Conectar tienda',
-    email: 'Invitar por correo',
-    key: 'Conectar con clave',
+    choice: "Conectar tienda",
+    email: "Invitar por correo",
+    key: "Conectar con clave",
   };
 
   const descriptions: Record<View, string> = {
     choice:
-      'Elegí cómo querés vincular una tienda contraparte a tu tienda actual.',
+      "Elegí cómo querés vincular una tienda contraparte a tu tienda actual.",
     email: `Le enviaremos por correo tu clave de tienda al destinatario ${counterpartyLabel(
       role,
     )} para que pueda conectarte. Esta acción no agrega la tienda hasta que el destinatario confirme.`,
@@ -96,24 +91,24 @@ export function ConnectStoreDialog({
       description={!inviteSuccess ? descriptions[view] : undefined}
       footer={null}
     >
-      {view === 'choice' ? (
+      {view === "choice" ? (
         <ChoiceView
           role={role}
           onChooseEmail={() => {
             setInviteSuccess(false);
-            setView('email');
+            setView("email");
           }}
           onChooseKey={() => {
-            setView('key');
+            setView("key");
           }}
         />
       ) : null}
 
-      {view === 'email' && !inviteSuccess ? (
+      {view === "email" && !inviteSuccess ? (
         <EmailInviteView
           role={role}
           accessToken={accessToken}
-          onBack={() => setView('choice')}
+          onBack={() => setView("choice")}
           onCancel={closeDialog}
           onSuccess={() => {
             setInviteSuccess(true);
@@ -121,7 +116,7 @@ export function ConnectStoreDialog({
         />
       ) : null}
 
-      {view === 'email' && inviteSuccess ? (
+      {view === "email" && inviteSuccess ? (
         <InviteSuccess
           onClose={() => {
             closeDialog();
@@ -129,14 +124,14 @@ export function ConnectStoreDialog({
         />
       ) : null}
 
-      {view === 'key' ? (
+      {view === "key" ? (
         <StoreKeyConnectView
           role={role}
           accessToken={accessToken}
-          onBack={() => setView('choice')}
+          onBack={() => setView("choice")}
           onCancel={closeDialog}
           onConnected={() => {
-            toast.success('Tienda conectada');
+            toast.success("Tienda conectada");
             onConnected();
             closeDialog();
           }}
@@ -147,7 +142,7 @@ export function ConnectStoreDialog({
 }
 
 interface ChoiceViewProps {
-  role: 'SOURCE' | 'VENDOR';
+  role: "SOURCE" | "VENDOR";
   onChooseEmail: () => void;
   onChooseKey: () => void;
 }
@@ -168,8 +163,8 @@ function ChoiceView({ role, onChooseEmail, onChooseKey }: ChoiceViewProps) {
             Invitar por correo
           </span>
           <span className="text-xs text-gray-11">
-            Enviá un correo al {counterpartyLabel(role)} con tu clave de
-            tienda. La conexión se completa cuando la otra parte la acepte.
+            Enviá un correo al {counterpartyLabel(role)} con tu clave de tienda.
+            La conexión se completa cuando la otra parte la acepte.
           </span>
         </div>
       </button>
@@ -230,7 +225,7 @@ function BackAndCancel({
 }
 
 interface EmailInviteViewProps {
-  role: 'SOURCE' | 'VENDOR';
+  role: "SOURCE" | "VENDOR";
   accessToken?: string;
   onBack: () => void;
   onCancel: () => void;
@@ -247,7 +242,7 @@ function EmailInviteView({
   const formRef = React.useRef<HTMLFormElement>(null);
   const { field, getValues, setFetchStatus, fetchStatus, setTouch, setError } =
     useFormDynamic({
-      email: 'text',
+      email: "text",
     });
 
   const values = getValues();
@@ -257,30 +252,29 @@ function EmailInviteView({
     e.preventDefault();
     if (!isValid) {
       setTouch({ email: true });
-      setError('Ingresá un correo válido');
+      setError("Ingresá un correo válido");
       return;
     }
-    setFetchStatus('loading');
+    setFetchStatus("loading");
     try {
       await apiFetch<InviteByEmailResponse>(
         `${BACKEND_URL}/api/stores/connections/email`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: String(values.email).trim(),
-            counterpartyRole: counterpartyLabel(role),
           }),
         },
         accessToken,
       );
-      setFetchStatus('success');
-      toast.success('Invitación enviada');
+      setFetchStatus("success");
+      toast.success("Invitación enviada");
       onSuccess();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'No se pudo enviar la invitación';
-      setFetchStatus('error');
+        err instanceof Error ? err.message : "No se pudo enviar la invitación";
+      setFetchStatus("error");
       setError(message);
       toast.error(message);
     }
@@ -297,7 +291,7 @@ function EmailInviteView({
       <FormField
         name="email"
         label={`Correo del destinatario (${counterpartyLabel(role)})`}
-        field={field('email')}
+        field={field("email")}
       >
         <Input
           type="email"
@@ -308,24 +302,19 @@ function EmailInviteView({
         />
       </FormField>
       <p className="text-xs text-gray-11">
-        Sólo compartiremos tu clave de tienda con el destinatario. La tienda
-        no se agregará hasta que la otra parte confirme.
+        Sólo compartiremos tu clave de tienda con el destinatario. La tienda no
+        se agregará hasta que la otra parte confirme.
       </p>
       <div className="flex items-center justify-between gap-2 pt-1">
-        <Button
-          type="button"
-          mode="pill"
-          onClick={onBack}
-          aria-label="Volver"
-        >
+        <Button type="button" mode="pill" onClick={onBack} aria-label="Volver">
           <ArrowLeft className="size-3" aria-hidden="true" />
           Volver
         </Button>
         <FormSubmit
           form="connect-store-email-form"
           fetchStatus={fetchStatus}
-          buttonProps={{ label: 'Enviar invitación' }}
-          disabled={fetchStatus === 'loading'}
+          buttonProps={{ label: "Enviar invitación" }}
+          disabled={fetchStatus === "loading"}
           className="px-4"
         />
       </div>
@@ -339,7 +328,7 @@ function EmailInviteView({
 }
 
 interface StoreKeyConnectViewProps {
-  role: 'SOURCE' | 'VENDOR';
+  role: "SOURCE" | "VENDOR";
   accessToken?: string;
   onBack: () => void;
   onCancel: () => void;
@@ -356,43 +345,38 @@ function StoreKeyConnectView({
   const formRef = React.useRef<HTMLFormElement>(null);
   const { field, getValues, setFetchStatus, fetchStatus, setTouch, setError } =
     useFormDynamic({
-      storeKey: 'text',
+      storeKey: "text",
     });
 
   const values = getValues();
-  const { isValid, errors } = validateFormData(
-    connectByStoreKeySchema,
-    values,
-  );
+  const { isValid, errors } = validateFormData(connectByStoreKeySchema, values);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isValid) {
       setTouch({ storeKey: true });
-      setError('Ingresá la clave de tienda');
+      setError("Ingresá la clave de tienda");
       return;
     }
-    setFetchStatus('loading');
+    setFetchStatus("loading");
     try {
       await apiFetch<StoreConnectionCreateResponse>(
         `${BACKEND_URL}/api/stores/connections`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             storeKey: String(values.storeKey).trim(),
           }),
         },
         accessToken,
       );
-      setFetchStatus('success');
+      setFetchStatus("success");
       onConnected();
     } catch (err) {
       const message =
-        err instanceof Error
-          ? err.message
-          : 'No se pudo completar la conexión';
-      setFetchStatus('error');
+        err instanceof Error ? err.message : "No se pudo completar la conexión";
+      setFetchStatus("error");
       setError(message);
       toast.error(message);
     }
@@ -409,7 +393,7 @@ function StoreKeyConnectView({
       <FormField
         name="storeKey"
         label={`Clave de tienda del ${counterpartyLabel(role)}`}
-        field={field('storeKey')}
+        field={field("storeKey")}
       >
         <Input
           type="text"
@@ -419,20 +403,28 @@ function StoreKeyConnectView({
         />
       </FormField>
       <p className="text-xs text-gray-11">
-        Pedile al {counterpartyLabel(role)} que comparta la clave desde su
-        panel principal (tienda). Es un código alfanumérico de 8 a 64
-        caracteres.
+        Pedile al {counterpartyLabel(role)} que comparta la clave desde su panel
+        principal (tienda). Es un código alfanumérico de 8 a 64 caracteres.
       </p>
-      <BackAndCancel onBack={onBack} onCancel={onCancel} />
-      <div className="flex justify-end">
-        <FormSubmit
+      <div className="flex justify-between gap-2 pt-3">
+      <Button
+        type="button"
+        mode="pill"
+        onClick={onBack}
+        isDisabled={fetchStatus === "loading"}
+        aria-label="Volver"
+      >
+        <ArrowLeft className="size-3" aria-hidden="true" />
+        Volver
+      </Button>
+      <FormSubmit
           form="connect-store-key-form"
           fetchStatus={fetchStatus}
-          buttonProps={{ label: 'Conectar' }}
-          disabled={fetchStatus === 'loading'}
+          buttonProps={{ label: "Conectar" }}
+          disabled={fetchStatus === "loading"}
           className="px-4"
         />
-      </div>
+    </div>
     </Form>
   );
 }

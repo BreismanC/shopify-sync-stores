@@ -15,13 +15,40 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IStoreRepository } from './repositories/IStoreRepository';
-import { ListStoresDto } from './dtos/list-stores.dto';
+import { ListStoresDto, ListConnectionsDto } from './dtos/list-stores.dto';
 import { StoreConnectionService } from './store-connection.service';
 import {
   ConnectByStoreKeyDto,
   SendStoreKeyEmailDto,
 } from './dtos/connect-by-store-key.dto';
 import { User } from '../../domain/entities/user.entity';
+
+export type StoreSortBy = 'shopifyShopId' | 'role' | 'createdAt';
+export type StoreOrder = 'asc' | 'desc';
+
+/**
+ * Normaliza y mapea el `sortBy` que llega en la query al conjunto
+ * soportado por el repositorio de `stores`.
+ *
+ * - `'connectedAt'` es un alias legado (la columna real es `createdAt`
+ *   porque `stores` no tiene `connectedAt`, sólo `store_connections`).
+ * - Cualquier valor desconocido cae al default `'createdAt'` para
+ *   mantener el endpoint resiliente (mismo criterio que ya cubren
+ *   los tests de `store.controller.list.spec.ts`).
+ */
+export function resolveStoreSortBy(raw?: string): StoreSortBy {
+  if (raw === 'shopifyShopId' || raw === 'role' || raw === 'createdAt') {
+    return raw;
+  }
+  if (raw === 'connectedAt') {
+    return 'createdAt';
+  }
+  return 'createdAt';
+}
+
+function resolveStoreOrder(raw?: string): StoreOrder {
+  return raw === 'asc' || raw === 'desc' ? raw : 'desc';
+}
 
 interface RequestWithUser extends Request {
   user: User;
@@ -76,8 +103,8 @@ export class StoreController {
 
     const page = query.page ?? 1;
     const perPage = query.perPage ?? 10;
-    const sortBy = query.sortBy ?? 'createdAt';
-    const order = query.order ?? 'desc';
+    const sortBy = resolveStoreSortBy(query.sortBy);
+    const order = resolveStoreOrder(query.order);
 
     const { data, total } = await this.storeRepository.findByTenantIdPaginated(
       tenantId,
@@ -107,12 +134,17 @@ export class StoreController {
   @Get('connections')
   async listConnections(
     @Req() req: RequestWithUser,
-    @Query() query: ListStoresDto,
+    @Query() query: ListConnectionsDto,
   ) {
     const page = query.page ?? 1;
     const perPage = query.perPage ?? 10;
-    const sortBy =
-      (query.sortBy as 'connectedAt' | 'isActive') ?? 'connectedAt';
+    // `ListConnectionsDto` valida `sortBy` con `IsString`
+    // (sin whitelist) pero el repositorio solo acepta
+    // 'connectedAt' | 'isActive'. Normalizamos para evitar SQL injection
+    // y mantener resiliencia ante valores basura.
+    const rawSortBy = (query.sortBy ?? 'connectedAt') as string;
+    const sortBy: 'connectedAt' | 'isActive' =
+      rawSortBy === 'isActive' ? 'isActive' : 'connectedAt';
     const order = query.order ?? 'desc';
 
     return this.connectionService.listConnections(req.user?.tenantId, {

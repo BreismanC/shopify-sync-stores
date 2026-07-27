@@ -43,6 +43,7 @@ const DEFAULT_PRODUCT_RULES = {
   tags: true,
   price: true,
   variants: true,
+  options: true,
   skuStrategy: 'SOURCE_SKU',
   inventory: true,
   publicationStatus: 'DRAFT',
@@ -407,6 +408,10 @@ export class UpdateSyncSettingsUseCase {
       ...settings.productRules,
       ...input.productRules,
     };
+    // Las variantes/opciones son necesarias para conservar la relación entre
+    // el producto source y el catálogo vendor durante la sincronización.
+    settings.productRules.variants = true;
+    settings.productRules.options = true;
     settings.orderRules = { ...settings.orderRules, ...input.orderRules };
     settings.inventoryRules = {
       sourceOfTruth: 'SOURCE',

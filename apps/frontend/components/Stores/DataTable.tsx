@@ -10,26 +10,8 @@ import {
   useReactTable,
   SortingState,
 } from '@tanstack/react-table';
-import { Search, Plus, ChevronDown } from 'lucide-react';
+import { Search, PlusCircle, ChevronDown, Store } from 'lucide-react';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  ResponsiveTableCard,
-} from '@/components/ui/Table';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import {
-  Empty,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyMedia,
-} from '@/components/ui/Empty';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   DropdownMenu,
@@ -40,6 +22,7 @@ import {
 
 import ConnectStoreDialog from './ConnectStoreDialog';
 import { DisconnectConfirmDialog } from './DisconnectConfirmDialog';
+import { ServerPaginationControls } from './ServerPaginationControls';
 import type { ConnectionRow, PaginationMeta } from './types';
 import type { CurrentStore } from '@/lib/store/current';
 import { useSession } from 'next-auth/react';
@@ -175,159 +158,172 @@ export default function DataTable({
   );
 
   const emptyState = (
-    <Empty>
-      <EmptyMedia>
-        <Plus className="size-5 text-gray-9" />
-      </EmptyMedia>
-      <EmptyHeader>
-        <EmptyTitle>No hay tiendas conectadas</EmptyTitle>
-        <EmptyDescription>
-          Podés invitar al {currentStore?.role === 'VENDOR' ? 'Source' : 'Vendor'} por
-          correo o pegar la clave que te compartieron para crear la
-          conexión.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className="text-center py-16 px-4">
+      <div className="inline-block p-4 bg-[#137fec]/10 rounded-full mb-4">
+        <Store className="size-8 text-[#137fec]" />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        No tienes tiendas conectadas todavía
+      </h3>
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+        Podés invitar al {currentStore?.role === 'VENDOR' ? 'Source' : 'Vendor'} por
+        correo o pegar la clave que te compartieron para crear la conexión.
+      </p>
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={() => setConnectOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-[#137fec] text-white text-sm font-bold shadow-sm hover:bg-[#137fec]/90 transition-colors mx-auto cursor-pointer border-none"
+        >
+          <PlusCircle className="size-4" />
+          <span>Añadir Primera Tienda</span>
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-12">Tiendas</h2>
-          <p className="text-gray-11 mt-1">
-            Conectá y administrá las tiendas Shopify vinculadas a tu tienda.
+    <div className="p-6 lg:p-10 space-y-6 max-w-7xl mx-auto">
+      {/* Page Heading */}
+      <header className="flex flex-col sm:flex-row flex-wrap justify-between items-start gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+            Gestión de Tiendas
+          </h1>
+          <p className="text-base font-normal text-gray-500 dark:text-gray-400">
+            Administra y monitorea tus tiendas Shopify conectadas.
           </p>
-          <a
-            href="#"
-            className="text-accent-9 hover:underline text-sm mt-1 inline-block"
-          >
-            Aprendé sobre conectar tiendas
-          </a>
         </div>
+        <button
+          type="button"
+          onClick={() => setConnectOpen(true)}
+          className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-[#137fec] hover:bg-[#137fec]/90 text-white text-sm font-bold shadow-sm transition-colors cursor-pointer border-none"
+          aria-label="Añadir Nueva Tienda"
+        >
+          <PlusCircle className="size-4" />
+          <span className="truncate">Añadir Nueva Tienda</span>
+        </button>
+      </header>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-gray-9" />
-            <Input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Buscar tienda"
-              className="pl-7 w-[240px]"
-            />
+      {/* Main Container Card */}
+      <div className="bg-white dark:bg-gray-900/50 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-800">
+        {/* ToolBar & SearchBar */}
+        <div className="flex flex-col md:flex-row justify-between gap-4 p-4 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex-1 min-w-0">
+            <label className="flex flex-col w-full">
+              <div className="flex items-stretch rounded-lg h-10">
+                <div className="text-gray-400 flex bg-gray-100 dark:bg-gray-800 items-center justify-center pl-3 rounded-l-lg">
+                  <Search className="size-4" />
+                </div>
+                <input
+                  className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#137fec]/50 border-none bg-gray-100 dark:bg-gray-800 h-full placeholder:text-gray-400 px-3 text-sm"
+                  placeholder="Filtrar tiendas por nombre..."
+                  value={search}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                />
+              </div>
+            </label>
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button mode="pill" size="sm">
-                <span>{currentSortLabel}</span>
-                <ChevronDown className="size-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {SORT_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onSelect={() => {
-                    const [sb, od] = opt.value.split(':') as [
-                      string,
-                      'asc' | 'desc',
-                    ];
-                    onSortChange(sb, od);
-                  }}
+          <div className="flex items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer border-none"
                 >
-                  {opt.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            onClick={() => setConnectOpen(true)}
-            className="bg-accent-9 hover:bg-accent-10 text-accent-contrast"
-            aria-label="Conectar tienda"
-          >
-            <Plus className="size-3.5" />
-            <span>Conectar tienda</span>
-          </Button>
-        </div>
-      </div>
-
-      <div className="border border-gray-a6 rounded-md overflow-hidden">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
+                  <span>Orden: {currentSortLabel}</span>
+                  <ChevronDown className="size-4 text-gray-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {SORT_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onSelect={() => {
+                      const [sb, od] = opt.value.split(':') as [
+                        string,
+                        'asc' | 'desc',
+                      ];
+                      onSortChange(sb, od);
+                    }}
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={`skel-${i}`}>
-                  <TableCell colSpan={columns.length}>
-                    <Skeleton className="h-8 w-full" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length}>{emptyState}</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
 
-      <ResponsiveTableCard
-        headers={
-          table
-            .getHeaderGroups()[0]
-            ?.headers.filter((header) => !header.isPlaceholder)
-            .map((header) => ({
-              id: header.id,
-              header: flexRender(
-                header.column.columnDef.header,
-                header.getContext(),
-              ),
-            })) || []
-        }
-        rows={table.getRowModel().rows.map((row) => ({
-          id: row.id,
-          cells: row.getVisibleCells().map((cell) => ({
-            id: cell.id,
-            content: flexRender(
-              cell.column.columnDef.cell,
-              cell.getContext(),
-            ),
-          })),
-        }))}
-        isLoading={isLoading}
-        emptyState={emptyState}
-      />
+        {/* DataTable */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-gray-600 dark:text-gray-400">
+            <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      scope="col"
+                      className="px-6 py-3 font-semibold"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr
+                    key={`skel-${i}`}
+                    className="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800"
+                  >
+                    <td colSpan={columns.length} className="px-6 py-4">
+                      <Skeleton className="h-6 w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-6 py-4 whitespace-nowrap">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="p-0">
+                    {emptyState}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <ServerPaginationControls
+          pagination={pagination}
+          currentPage={pagination.page}
+          onPageChange={onPageChange}
+        />
+      </div>
 
       <ConnectStoreDialog
         open={connectOpen}

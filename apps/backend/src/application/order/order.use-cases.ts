@@ -23,8 +23,13 @@ export class GetOrdersUseCase {
   constructor(
     @Inject(IOrderRepository) private readonly orders: IOrderRepository,
   ) {}
-  execute(tenantId: string, query: OrderListQuery) {
-    return this.orders.list(tenantId, query);
+  async execute(tenantId: string, query: OrderListQuery) {
+    const result = await this.orders.list(tenantId, query);
+    const data = await Promise.all(result.data.map(async (order) => ({
+      ...order,
+      payout: await this.orders.findPayoutByOrder(tenantId, order.id),
+    })));
+    return { ...result, data };
   }
 }
 

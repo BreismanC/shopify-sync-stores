@@ -10,9 +10,18 @@ export interface ConnectionRow {
   id: string;
   storeId: string;
   shopifyShopId: string;
-  role: 'SOURCE' | 'VENDOR';
+  role: "SOURCE" | "VENDOR";
   isActive: boolean;
-  connectedAt: string;
+  status?:
+    | "PENDING"
+    | "ACTIVE"
+    | "REJECTED"
+    | "REVOKED"
+    | "CANCELED"
+    | "EXPIRED";
+  connectedAt: string | null;
+  isInitiator: boolean;
+  isOwn?: boolean;
 }
 
 export interface StoreConnectionListResponse {
@@ -25,7 +34,7 @@ export interface StoreConnectionCreateResponse {
   store: {
     id: string;
     shopifyShopId: string;
-    role: 'SOURCE' | 'VENDOR';
+    role: "SOURCE" | "VENDOR";
     isActive: boolean;
     storeKey: string;
   };
@@ -35,4 +44,4 @@ export interface InviteByEmailResponse {
   message: string;
 }
 
-export type StoreRole = 'SOURCE' | 'VENDOR';
+export type StoreRole = "SOURCE" | "VENDOR";

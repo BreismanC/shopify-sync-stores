@@ -27,4 +27,5 @@ export abstract class IOrderRepository {
     query: OrderListQuery,
   ): Promise<{ data: SyncedOrder[]; total: number }>;
   abstract findPayout(tenantId: string, id: string): Promise<Payout | null>;
+  abstract findPayoutByOrder(tenantId: string, syncedOrderId: string): Promise<Payout | null>;
 }

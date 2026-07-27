@@ -33,6 +33,7 @@ import { getStoreName, getStoresColumns } from './Columns';
 
 interface DataTableProps {
   stores: ConnectionRow[];
+  tenantId: string;
   pagination: PaginationMeta;
   isLoading: boolean;
   search: string;
@@ -60,6 +61,7 @@ const SORT_OPTIONS: { label: string; value: SortKey }[] = [
 
 export default function DataTable({
   stores,
+  tenantId,
   pagination,
   isLoading,
   search,
@@ -78,11 +80,6 @@ export default function DataTable({
   const [pendingDisconnect, setPendingDisconnect] =
     useState<ConnectionRow | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-
-  const handleViewProducts = (row: ConnectionRow) => {
-    void row;
-    toast.info('Próximamente: vista de productos');
-  };
 
   const requestDisconnect = (row: ConnectionRow) => {
     setPendingDisconnect(row);
@@ -119,7 +116,7 @@ export default function DataTable({
   const columns = useMemo<ColumnDef<ConnectionRow>[]>(
     () =>
       getStoresColumns({
-        onViewProducts: handleViewProducts,
+        tenantId,
         onDisconnect: requestDisconnect,
         currentStore,
       }),
@@ -162,10 +159,10 @@ export default function DataTable({
       <div className="inline-block p-4 bg-[#137fec]/10 rounded-full mb-4">
         <Store className="size-8 text-[#137fec]" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <h3 className="text-lg font-semibold text-gray-900">
         No tienes tiendas conectadas todavía
       </h3>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+      <p className="mt-1 text-sm text-gray-500 max-w-md mx-auto">
         Podés invitar al {currentStore?.role === 'VENDOR' ? 'Source' : 'Vendor'} por
         correo o pegar la clave que te compartieron para crear la conexión.
       </p>
@@ -183,14 +180,14 @@ export default function DataTable({
   );
 
   return (
-    <div className="p-6 lg:p-10 space-y-6 max-w-7xl mx-auto">
+    <div className="p-12 space-y-8">
       {/* Page Heading */}
       <header className="flex flex-col sm:flex-row flex-wrap justify-between items-start gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">
             Gestión de Tiendas
           </h1>
-          <p className="text-base font-normal text-gray-500 dark:text-gray-400">
+          <p className="text-base font-normal text-gray-500">
             Administra y monitorea tus tiendas Shopify conectadas.
           </p>
         </div>
@@ -206,17 +203,17 @@ export default function DataTable({
       </header>
 
       {/* Main Container Card */}
-      <div className="bg-white dark:bg-gray-900/50 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-800">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
         {/* ToolBar & SearchBar */}
-        <div className="flex flex-col md:flex-row justify-between gap-4 p-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex flex-col md:flex-row justify-between gap-4 p-4 border-b border-gray-200">
           <div className="flex-1 min-w-0">
             <label className="flex flex-col w-full">
               <div className="flex items-stretch rounded-lg h-10">
-                <div className="text-gray-400 flex bg-gray-100 dark:bg-gray-800 items-center justify-center pl-3 rounded-l-lg">
+                <div className="text-gray-400 flex bg-gray-100 items-center justify-center pl-3 rounded-l-lg">
                   <Search className="size-4" />
                 </div>
                 <input
-                  className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#137fec]/50 border-none bg-gray-100 dark:bg-gray-800 h-full placeholder:text-gray-400 px-3 text-sm"
+                  className="default flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#137fec]/50 border-none bg-gray-100 h-full placeholder:text-gray-400 px-3 text-sm"
                   placeholder="Filtrar tiendas por nombre..."
                   value={search}
                   onChange={(e) => onSearchChange(e.target.value)}
@@ -229,7 +226,7 @@ export default function DataTable({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer border-none"
+                  className="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-100 px-4 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors cursor-pointer border-none"
                 >
                   <span>Orden: {currentSortLabel}</span>
                   <ChevronDown className="size-4 text-gray-400" />
@@ -257,15 +254,15 @@ export default function DataTable({
 
         {/* DataTable */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-600 dark:text-gray-400">
-            <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800">
+          <table className="w-full text-sm text-left text-gray-600">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
                       scope="col"
-                      className="px-6 py-3 font-semibold"
+                      className="px-6 py-3 font-semibold tracking-wide text-xs leading-5"
                     >
                       {header.isPlaceholder
                         ? null
@@ -283,7 +280,7 @@ export default function DataTable({
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr
                     key={`skel-${i}`}
-                    className="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800"
+                    className="bg-white border-b border-gray-200"
                   >
                     <td colSpan={columns.length} className="px-6 py-4">
                       <Skeleton className="h-6 w-full" />
@@ -294,7 +291,7 @@ export default function DataTable({
                 table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="bg-white dark:bg-gray-900/50 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    className="bg-white border-b border-gray-200 hover:bg-gray-50 transition-colors"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-6 py-4 whitespace-nowrap">

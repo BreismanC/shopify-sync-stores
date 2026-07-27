@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { BACKEND_URL } from '@/lib/env';
 import { getCurrentStore } from '@/lib/store/current';
 import StoresClient from './stores-client';
+import { redirect, useParams } from 'next/navigation';
 
 interface CurrentStoreApiResponse {
   store: {
@@ -16,7 +17,10 @@ interface CurrentStoreApiResponse {
 export default async function StoresPage() {
   const session = await auth();
   const accessToken = session?.accessToken;
-
+  const tenantId = session?.user.tenantId;
+  if (!tenantId) {
+    redirect('/auth/login');
+  }
   let currentStore = await getCurrentStore();
 
   if (accessToken && !currentStore) {
@@ -34,5 +38,5 @@ export default async function StoresPage() {
     }
   }
 
-  return <StoresClient currentStore={currentStore} />;
+  return <StoresClient currentStore={currentStore} tenantId={tenantId} />;
 }

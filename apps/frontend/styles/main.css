@@ -407,16 +407,9 @@
     display: inline-flex;
     height: calc(var(--aura) * 4);
     padding: 0 calc(var(--aura) * 2);
-    border: 2px solid;
+    border: 1px solid;
     transition: transform 250ms cubic-bezier(0.2, 0.8, 0.4, 1);
     justify-content: center;
-  }
-  .button:hover.button:hover:not(:disabled),
-  .button-fill:hover.button-fill:hover:not(:disabled),
-  .button-pill:hover.button-pill:hover:not(:disabled),
-  .button-link:hover.button-link:hover:not(:disabled),
-  .button-menu:hover.button-menu:hover:not(:disabled) {
-    transform: scale(1.03);
   }
   .button:active.button:hover:not(:disabled),
   .button-fill:active.button-fill:hover:not(:disabled),
@@ -437,7 +430,7 @@
   }
   .button-pill {
     color: var(--aura-link);
-    border-color: var(--aura-link);
+    border-color: var(--color-gray-300);
     background-color: transparent;
   }
   .button-pill:hover:not(:disabled),

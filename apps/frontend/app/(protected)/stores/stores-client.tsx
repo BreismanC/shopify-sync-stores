@@ -20,9 +20,10 @@ interface CurrentStoreResponse {
 
 export interface StoresClientProps {
   currentStore: CurrentStore | null;
+  tenantId: string;
 }
 
-export default function StoresClient({ currentStore }: StoresClientProps) {
+export default function StoresClient({ currentStore, tenantId }: StoresClientProps) {
   const { data: session } = useSession();
   const accessToken = session?.accessToken;
 
@@ -154,6 +155,7 @@ export default function StoresClient({ currentStore }: StoresClientProps) {
   return (
     <DataTable
       stores={stores}
+      tenantId={tenantId}
       pagination={pagination}
       isLoading={isLoading}
       search={search}

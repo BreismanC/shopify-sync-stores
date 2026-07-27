@@ -11,7 +11,7 @@ import {
 import { Transform, Type } from 'class-transformer';
 
 export class ListProductsDto {
-  @IsUUID() sourceStoreId: string;
+  @IsOptional() @IsUUID() sourceStoreId?: string;
   @IsOptional() @IsString() search?: string;
   @IsOptional() @Type(() => Number) @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @Min(1) @Max(100) perPage = 20;

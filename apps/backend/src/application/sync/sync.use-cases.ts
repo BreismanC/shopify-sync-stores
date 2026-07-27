@@ -178,11 +178,24 @@ export class GetProductsUseCase {
   ) {}
   async execute(
     tenantId: string,
-    query: ProductListQuery & { sourceStoreId: string },
+    query: ProductListQuery & { sourceStoreId?: string },
   ) {
-    await this.access.resolve(tenantId, query.sourceStoreId);
     const { sourceStoreId, ...filters } = query;
-    return this.products.listByStore(sourceStoreId, filters);
+    if (sourceStoreId) {
+      await this.access.resolve(tenantId, sourceStoreId);
+      return this.products.listByStore(sourceStoreId, filters);
+    }
+    const sources = await this.access.list(tenantId);
+    const pages = await Promise.all(sources.map((source) => this.products.listByStore(source.storeId, { ...filters, page: 1, perPage: 100 })));
+    const all = pages.flatMap((page) => page.data);
+    all.sort((a, b) => {
+      const left = filters.sortBy === 'title' ? a.title : a.shopifyCreatedAt?.getTime() ?? 0;
+      const right = filters.sortBy === 'title' ? b.title : b.shopifyCreatedAt?.getTime() ?? 0;
+      const result = left < right ? -1 : left > right ? 1 : 0;
+      return filters.order === 'asc' ? result : -result;
+    });
+    const start = (filters.page - 1) * filters.perPage;
+    return { data: all.slice(start, start + filters.perPage), total: all.length };
   }
 }
 

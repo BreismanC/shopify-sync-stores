@@ -79,31 +79,29 @@ export class ProductSourceAccessUseCase {
     const rows: ProductSourceContext[] = [
       { source: destination, destination, connectionId: null, kind: 'OWN' },
     ];
-    if (destination.role === StoreRole.VENDOR) {
-      const connections = await this.connections.findActiveByVendorStore(
-        destination.id,
-      );
-      const connected: Array<ProductSourceContext | null> = await Promise.all(
-        connections.map(async (connection) => {
-          const source = await this.stores.findById(connection.sourceStoreId);
-          if (!source || !source.isActive || source.role !== StoreRole.SOURCE)
-            return null;
-          return {
-            source,
-            destination,
-            connectionId: connection.id,
-            kind: 'CONNECTED' as const,
-          };
-        }),
-      );
-      rows.push(
-        ...connected
-          .filter((row): row is ProductSourceContext => Boolean(row))
-          .sort((a, b) =>
-            a.source.shopifyShopId.localeCompare(b.source.shopifyShopId),
-          ),
-      );
-    }
+    const connections = await this.connections.findActiveByVendorStore(
+      destination.id,
+    );
+    const connected: Array<ProductSourceContext | null> = await Promise.all(
+      connections.map(async (connection) => {
+        const source = await this.stores.findById(connection.sourceStoreId);
+        if (!source || !source.isActive || source.role !== StoreRole.SOURCE)
+          return null;
+        return {
+          source,
+          destination,
+          connectionId: connection.id,
+          kind: 'CONNECTED' as const,
+        };
+      }),
+    );
+    rows.push(
+      ...connected
+        .filter((row): row is ProductSourceContext => Boolean(row))
+        .sort((a, b) =>
+          a.source.shopifyShopId.localeCompare(b.source.shopifyShopId),
+        ),
+    );
     return Promise.all(
       rows.map(async (row) => {
         const productCount = await this.products.countByStore(row.source.id);
@@ -155,7 +153,10 @@ export class ProductSourceAccessUseCase {
 
   private async currentStore(tenantId: string) {
     const stores = await this.stores.findByTenantId(tenantId);
-    const store = stores.find((row) => row.isActive) ?? stores[0];
+    const store =
+      stores.find((row) => row.isActive && row.role === StoreRole.VENDOR) ??
+      stores.find((row) => row.isActive) ??
+      stores[0];
     if (!store)
       throw new NotFoundException('El tenant no tiene una tienda conectada.');
     return store;

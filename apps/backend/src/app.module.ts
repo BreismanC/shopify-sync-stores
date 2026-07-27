@@ -14,6 +14,8 @@ import { OnboardingModule } from './application/onboarding/onboarding.module';
 import { MercadoPagoModule } from './infrastructure/mercadopago/mercadopago.module';
 import { EmailModule } from './infrastructure/services/email/email.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
+import { SyncModule } from './application/sync/sync.module';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { RealtimeModule } from './infrastructure/realtime/realtime.module';
       },
     ]),
     DatabaseModule,
+    QueueModule,
     AuthModule,
     TenantModule,
     SubscriptionModule,
@@ -38,6 +41,7 @@ import { RealtimeModule } from './infrastructure/realtime/realtime.module';
     MercadoPagoModule,
     EmailModule,
     RealtimeModule,
+    SyncModule,
   ],
   controllers: [AppController],
   providers: [AppService],

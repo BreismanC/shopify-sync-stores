@@ -477,6 +477,10 @@
   input:not(.default) {
     transition: all 0.1s ease-in-out;
     touch-action: manipulation;
+    cursor: pointer !important;
+  }
+  input[type="checkbox"]:focus {
+    outline:  none !important;
   }
   textarea:not(.default) {
     border-radius: var(--aura-input-radius);

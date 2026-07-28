@@ -10,6 +10,7 @@ import { IQueuePublisher } from '../ports/queue-publisher.port';
 import { IStoreRepository } from '../store/repositories/IStoreRepository';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue.constants';
 import { IWebhookDeliveryRepository } from './repositories/webhook-delivery.repository';
+import { inventoryItemIdFromWebhookPayload } from '../inventory/inventory.use-cases';
 
 @Injectable()
 export class ProcessShopifyWebhookUseCase {
@@ -56,15 +57,29 @@ export class ProcessShopifyWebhookUseCase {
         error: null,
       }),
     );
-    const queue = input.topic.startsWith('products/')
-      ? QUEUE_NAMES.PRODUCT_WEBHOOK
-      : input.topic.startsWith('inventory_levels/')
-        ? QUEUE_NAMES.INVENTORY_SYNC
-        : QUEUE_NAMES.ORDER_SYNC;
-    await this.queues.publish(
-      queue,
-      input.topic,
-      {
+    const queue =
+      input.topic === 'app/uninstalled'
+        ? QUEUE_NAMES.RECONCILIATION
+        : input.topic.startsWith('products/')
+          ? QUEUE_NAMES.PRODUCT_WEBHOOK
+          : input.topic.startsWith('inventory_levels/')
+            ? QUEUE_NAMES.INVENTORY_SYNC
+            : QUEUE_NAMES.ORDER_SYNC;
+    const inventoryItemId = input.topic.startsWith('inventory_levels/')
+      ? inventoryItemIdFromWebhookPayload(payload)
+      : '';
+    const data = input.topic.startsWith('inventory_levels/')
+      ? {
+          deliveryId: delivery.id,
+          tenantId: store?.tenantId ?? null,
+          storeId: store?.id ?? null,
+          inventoryItemId,
+          origin: 'webhook',
+          timestamp: new Date().toISOString(),
+          eventId: input.eventId,
+          deduplicationKey: `inventory-sync:${store?.id ?? input.shopDomain}:${inventoryItemId}`,
+        }
+      : {
         deliveryId: delivery.id,
         tenantId: store?.tenantId ?? null,
         storeId: store?.id ?? null,
@@ -72,8 +87,23 @@ export class ProcessShopifyWebhookUseCase {
         topic: input.topic,
         eventId: input.eventId,
         payload,
+      };
+    await this.queues.publish(
+      queue,
+      input.topic.startsWith('inventory_levels/')
+        ? 'inventory-sync-requested'
+        : input.topic,
+      data as Record<string, unknown>,
+      {
+        jobId: `${store?.id ?? input.shopDomain}-${input.eventId}`.replace(
+          /:/g,
+          '-',
+        ),
+        attempts: 8,
+        backoffMs: 2_000,
+        deduplicationId: `webhook:${input.shopDomain}:${input.eventId}`,
+        deduplicationTtl: 10_000,
       },
-      { jobId: input.eventId, attempts: 8, backoffMs: 2_000 },
     );
     return { accepted: true, duplicate: false };
   }

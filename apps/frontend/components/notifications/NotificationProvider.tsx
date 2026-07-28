@@ -10,10 +10,10 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { BACKEND_URL } from "@/lib/env";
 import { fetchWithAuth, useAuthFetch } from "@/lib/auth/fetch-with-auth";
+import { createSyncSocket } from "@/lib/realtime/sync-socket";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -71,10 +71,7 @@ export function NotificationProvider({
 
   useEffect(() => {
     if (!tenantId || !session?.accessToken) return;
-    const client = io(`${BACKEND_URL}/sync`, {
-      auth: { token: session.accessToken },
-      transports: ["websocket", "polling"],
-    });
+    const client = createSyncSocket(session.accessToken);
     const refresh = () => void mutate();
     client.on("notification.created", (notification: AppNotification) => {
       refresh();

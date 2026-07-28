@@ -79,7 +79,44 @@ describe('ProcessShopifyWebhookUseCase', () => {
       'product-webhook',
       'products/update',
       expect.objectContaining({ eventId: 'evt-1' }),
-      expect.objectContaining({ jobId: 'evt-1' }),
+      expect.objectContaining({
+        jobId: 'store-1-evt-1',
+        deduplicationId: 'webhook:shop.myshopify.com:evt-1',
+      }),
+    );
+  });
+
+  it('encola inventario como InventorySyncRequested', async () => {
+    const inventoryPayload = Buffer.from(
+      JSON.stringify({ inventory_item_id: 12345, available: 99 }),
+    );
+    const inventorySignature = createHmac('sha256', secret)
+      .update(inventoryPayload)
+      .digest('base64');
+    const { useCase, queues } = setup();
+
+    await expect(
+      useCase.execute({
+        rawBody: inventoryPayload,
+        hmac: inventorySignature,
+        topic: 'inventory_levels/update',
+        shopDomain: 'shop.myshopify.com',
+        eventId: 'evt-inventory-1',
+      }),
+    ).resolves.toEqual({ accepted: true, duplicate: false });
+
+    expect(queues.publish).toHaveBeenCalledWith(
+      'inventory-sync',
+      'inventory-sync-requested',
+      expect.objectContaining({
+        storeId: 'store-1',
+        inventoryItemId: 'gid://shopify/InventoryItem/12345',
+        origin: 'webhook',
+        eventId: 'evt-inventory-1',
+      }),
+      expect.objectContaining({
+        deduplicationId: 'webhook:shop.myshopify.com:evt-inventory-1',
+      }),
     );
   });
 });

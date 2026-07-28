@@ -16,6 +16,7 @@ import { EmailModule } from './infrastructure/services/email/email.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { SyncModule } from './application/sync/sync.module';
+import { WebhookModule } from './application/webhook/webhook.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SyncModule } from './application/sync/sync.module';
     EmailModule,
     RealtimeModule,
     SyncModule,
+    WebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],

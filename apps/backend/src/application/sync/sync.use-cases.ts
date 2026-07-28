@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -33,6 +34,8 @@ import {
 } from './repositories/sync.repositories';
 import { asScalarString } from '../common/scalar';
 import { CreateNotificationUseCase } from '../notification/notification.use-cases';
+import { InitialSyncScanRequested, ProductSyncRequested } from './sync.events';
+import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
 
 const DEFAULT_PRODUCT_RULES = {
   title: true,
@@ -45,7 +48,6 @@ const DEFAULT_PRODUCT_RULES = {
   variants: true,
   options: true,
   skuStrategy: 'SOURCE_SKU',
-  inventory: true,
   publicationStatus: 'DRAFT',
   commissionPercentage: 0,
   commissionFixed: 0,
@@ -176,6 +178,9 @@ export class GetProductsUseCase {
   constructor(
     private readonly access: ProductSourceAccessUseCase,
     @Inject(IProductRepository) private readonly products: IProductRepository,
+    @Inject(IInventoryRepository)
+    private readonly inventory: IInventoryRepository,
+    @Inject(ISyncRepository) private readonly sync: ISyncRepository,
   ) {}
   async execute(
     tenantId: string,
@@ -183,20 +188,87 @@ export class GetProductsUseCase {
   ) {
     const { sourceStoreId, ...filters } = query;
     if (sourceStoreId) {
-      await this.access.resolve(tenantId, sourceStoreId);
-      return this.products.listByStore(sourceStoreId, filters);
+      const context = await this.access.resolve(tenantId, sourceStoreId);
+      const result = await this.products.listByStore(sourceStoreId, filters);
+      return this.withInventoryAndSyncStatus(result, context);
     }
     const sources = await this.access.list(tenantId);
-    const pages = await Promise.all(sources.map((source) => this.products.listByStore(source.storeId, { ...filters, page: 1, perPage: 100 })));
+    const pages = await Promise.all(
+      sources.map((source) =>
+        this.products.listByStore(source.storeId, {
+          ...filters,
+          page: 1,
+          perPage: 100,
+        }),
+      ),
+    );
     const all = pages.flatMap((page) => page.data);
     all.sort((a, b) => {
-      const left = filters.sortBy === 'title' ? a.title : a.shopifyCreatedAt?.getTime() ?? 0;
-      const right = filters.sortBy === 'title' ? b.title : b.shopifyCreatedAt?.getTime() ?? 0;
+      const left =
+        filters.sortBy === 'title'
+          ? a.title
+          : (a.shopifyCreatedAt?.getTime() ?? 0);
+      const right =
+        filters.sortBy === 'title'
+          ? b.title
+          : (b.shopifyCreatedAt?.getTime() ?? 0);
       const result = left < right ? -1 : left > right ? 1 : 0;
       return filters.order === 'asc' ? result : -result;
     });
     const start = (filters.page - 1) * filters.perPage;
-    return { data: all.slice(start, start + filters.perPage), total: all.length };
+    return {
+      data: await this.attachInventoryAndStatus(
+        all.slice(start, start + filters.perPage),
+        null,
+      ),
+      total: all.length,
+    };
+  }
+
+  private async withInventoryAndSyncStatus(
+    result: { data: ProductSnapshot[]; total: number },
+    context: ProductSourceContext,
+  ) {
+    return {
+      ...result,
+      data: await this.attachInventoryAndStatus(
+        result.data,
+        context.connectionId,
+      ),
+    };
+  }
+
+  private async attachInventoryAndStatus(
+    products: ProductSnapshot[],
+    connectionId: string | null,
+  ) {
+    const variants = products.flatMap((product) => product.variants ?? []);
+    const [snapshots, syncedProductIds] = await Promise.all([
+      this.inventory.findSnapshotsByVariantIds(
+        variants.map((variant) => variant.id),
+      ),
+      connectionId
+        ? this.sync.findSyncedProductIds(
+            connectionId,
+            products.map((product) => product.id),
+          )
+        : Promise.resolve(products.map((product) => product.id)),
+    ]);
+    const quantityByVariant = new Map(
+      snapshots.map((snapshot) => [
+        snapshot.variantId,
+        snapshot.availableQuantity,
+      ]),
+    );
+    const syncedIds = new Set(syncedProductIds);
+    return products.map((product) => ({
+      ...product,
+      isSynced: syncedIds.has(product.id),
+      variants: (product.variants ?? []).map((variant) => ({
+        ...variant,
+        inventoryQuantity: quantityByVariant.get(variant.id) ?? 0,
+      })),
+    }));
   }
 }
 
@@ -204,26 +276,57 @@ export class GetProductsUseCase {
 export class QueueStoreReconciliationUseCase {
   constructor(
     private readonly access: ProductSourceAccessUseCase,
+    @Inject(ISyncRepository) private readonly sync: ISyncRepository,
     @Inject(IQueuePublisher) private readonly queues: IQueuePublisher,
   ) {}
   async execute(tenantId: string, sourceStoreId: string, role: UserRole) {
     assertCanSynchronize(role);
     const context = await this.access.resolve(tenantId, sourceStoreId);
-    const bucket = Math.floor(Date.now() / 60_000);
+    const active = await this.sync.findActiveInitialSyncJob(
+      tenantId,
+      context.source.id,
+    );
+    if (active)
+      return {
+        jobId: null,
+        initialSyncJobId: active.id,
+        status: active.status,
+      };
+    const initial = await this.sync.saveInitialSyncJob(
+      this.sync.createInitialSyncJob({
+        tenantId,
+        storeId: context.source.id,
+        status: SyncBatchStatus.PENDING,
+        totalProducts: 0,
+        processedProducts: 0,
+        succeededProducts: 0,
+        failedProducts: 0,
+        lastError: null,
+        startedAt: null,
+        finishedAt: null,
+      }),
+    );
     const jobId = await this.queues.publish(
       QUEUE_NAMES.RECONCILIATION,
-      'reconcile-products',
+      'scan-products',
       {
-        tenantId: context.source.tenantId,
-        notifyTenantId: tenantId,
+        tenantId,
+        sourceTenantId: context.source.tenantId,
         storeId: context.source.id,
-      },
+        initialSyncJobId: initial.id,
+        origin: 'initial_sync',
+      } satisfies InitialSyncScanRequested,
       {
-        jobId: `products-${context.source.id}-${bucket}`,
-        attempts: 3,
+        jobId: `initial-sync-${initial.id}`,
+        attempts: 5,
+        backoffMs: 2_000,
       },
     );
-    return { jobId, status: 'QUEUED' };
+    return {
+      jobId,
+      initialSyncJobId: initial.id,
+      status: SyncBatchStatus.PENDING,
+    };
   }
 }
 
@@ -290,7 +393,6 @@ export class UpsertProductSnapshotUseCase {
           sku: variant.sku ? asScalarString(variant.sku) : null,
           barcode: variant.barcode ? asScalarString(variant.barcode) : null,
           price: asScalarString(variant.price, '0'),
-          inventoryQuantity: Number(variant.inventoryQuantity ?? 0),
           payload: variant,
         },
       );
@@ -349,36 +451,58 @@ export class ReconcileStoreUseCase {
 export class ProcessProductWebhookUseCase {
   constructor(
     @Inject(IStoreRepository) private readonly stores: IStoreRepository,
-    @Inject(IProductRepository) private readonly products: IProductRepository,
-    private readonly reconcile: ReconcileStoreUseCase,
+    @Inject(IQueuePublisher) private readonly queues: IQueuePublisher,
   ) {}
   async execute(job: {
     tenantId?: string | null;
     storeId?: string | null;
+    eventId: string;
     topic: string;
     payload: Record<string, unknown>;
   }) {
     if (!job.storeId) return { skipped: 'UNKNOWN_STORE' };
     const store = await this.stores.findById(job.storeId);
     if (!store) return { skipped: 'UNKNOWN_STORE' };
-    if (job.topic === 'products/delete') {
-      const rawId = asScalarString(job.payload.id);
-      const product =
-        (await this.products.findByShopifyId(store.id, rawId)) ??
-        (await this.products.findByShopifyId(
-          store.id,
-          `gid://shopify/Product/${rawId}`,
-        ));
-      if (product) {
-        product.deletedAt = new Date();
-        await this.products.save(product);
-      }
-      return { deleted: Boolean(product) };
-    }
-    return this.reconcile.execute({
+    const rawId = asScalarString(job.payload.id);
+    if (!rawId) return { skipped: 'MISSING_PRODUCT_ID' };
+    const shopifyProductId = rawId.startsWith('gid://')
+      ? rawId
+      : `gid://shopify/Product/${rawId}`;
+    const payload: ProductSyncRequested = {
       tenantId: store.tenantId,
       storeId: store.id,
-    });
+      shopifyProductId,
+      origin: 'webhook',
+      timestamp: new Date().toISOString(),
+      deduplicationKey: `product-sync:${store.id}:${shopifyProductId}`,
+      deleted: job.topic === 'products/delete',
+    };
+    const queueJobId = await this.queues.publish(
+      QUEUE_NAMES.PRODUCT_SYNC,
+      'product-sync-requested',
+      payload as unknown as Record<string, unknown>,
+      {
+        attempts: 8,
+        backoffMs: 2_000,
+      },
+    );
+    return { queued: true, queueJobId };
+  }
+}
+
+@Injectable()
+export class ProcessAppUninstalledWebhookUseCase {
+  constructor(
+    @Inject(IStoreRepository) private readonly stores: IStoreRepository,
+  ) {}
+
+  async execute(input: { storeId?: string | null }) {
+    if (!input.storeId) return { skipped: 'STORE_NOT_FOUND' };
+    const store = await this.stores.findById(input.storeId);
+    if (!store) return { skipped: 'STORE_NOT_FOUND' };
+    store.isActive = false;
+    await this.stores.save(store);
+    return { deactivated: true, storeId: store.id };
   }
 }
 
@@ -470,17 +594,21 @@ export class CreateSyncBatchUseCase {
       input.tenantId,
       input.sourceStoreId,
     );
+    const activeBatch = await this.sync.findActiveBatch(
+      input.tenantId,
+      context.source.id,
+    );
+    if (activeBatch)
+      throw new ConflictException(
+        'Ya existe una sincronización activa para esta tienda.',
+      );
     const uniqueIds = [...new Set(input.productIds)];
     const products = uniqueIds.length
       ? await this.products.findByIdsForStore(context.source.id, uniqueIds)
-      : await this.products.findAllByStore(context.source.id);
+      : [];
     if (uniqueIds.length && products.length !== uniqueIds.length)
       throw new BadRequestException(
         'Uno o más productos no pertenecen al catálogo autorizado.',
-      );
-    if (!products.length)
-      throw new BadRequestException(
-        'El catálogo está vacío. Actualízalo primero desde Shopify.',
       );
     const operation =
       context.kind === 'OWN'
@@ -495,7 +623,7 @@ export class CreateSyncBatchUseCase {
         operation,
         requestedByUserId: input.userId,
         status: SyncBatchStatus.PENDING,
-        total: products.length,
+        total: uniqueIds.length,
         processed: 0,
         succeeded: 0,
         failed: 0,
@@ -505,24 +633,53 @@ export class CreateSyncBatchUseCase {
         finishedAt: null,
       }),
     );
-    await Promise.all(
-      products.map((product) =>
-        this.queues.publish(
-          QUEUE_NAMES.PRODUCT_SYNC,
-          'sync-product',
-          {
-            tenantId: input.tenantId,
-            batchId: batch.id,
-            sourceStoreId: context.source.id,
-            destinationStoreId: context.destination.id,
-            connectionId: context.connectionId,
-            operation,
-            productId: product.id,
-          },
-          { jobId: `${batch.id}-${product.id}`, attempts: 5, backoffMs: 2_000 },
-        ),
-      ),
-    );
+    if (!uniqueIds.length) {
+      await this.queues.publish(
+        QUEUE_NAMES.RECONCILIATION,
+        'scan-products',
+        {
+          tenantId: input.tenantId,
+          sourceTenantId: context.source.tenantId,
+          storeId: context.source.id,
+          batchId: batch.id,
+          connectionId: context.connectionId,
+          destinationStoreId: context.destination.id,
+          requestedByUserId: input.userId,
+          origin: 'manual_sync',
+        } satisfies InitialSyncScanRequested,
+        {
+          jobId: `manual-scan-${batch.id}`,
+          attempts: 5,
+          backoffMs: 2_000,
+        },
+      );
+      return batch;
+    }
+    for (const product of products) {
+      const payload: ProductSyncRequested = {
+        tenantId: input.tenantId,
+        storeId: context.source.id,
+        shopifyProductId: product.shopifyProductId,
+        origin: 'manual_sync',
+        timestamp: new Date().toISOString(),
+        deduplicationKey: `product-sync:${context.source.id}:${product.shopifyProductId}`,
+        batchId: batch.id,
+        initialSyncJobId: null,
+        connectionId: context.connectionId,
+        destinationStoreId: context.destination.id,
+        requestedByUserId: input.userId,
+      };
+      await this.queues.publish(
+        QUEUE_NAMES.PRODUCT_SYNC,
+        'product-sync-requested',
+        payload as unknown as Record<string, unknown>,
+        {
+          jobId: `${batch.id}-${context.source.id}-${product.id}`,
+          attempts: 8,
+          backoffMs: 2_000,
+        },
+      );
+    }
     batch.status = SyncBatchStatus.RUNNING;
     batch.startedAt = new Date();
     return this.sync.saveBatch(batch);

@@ -8,7 +8,11 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { cn } from "@/utils/class-names";
 import { BACKEND_URL } from "@/lib/env";
 
@@ -52,8 +56,9 @@ const formatCopPrice = (value: number) =>
 type BillingPeriod = "MONTHLY" | "YEARLY";
 
 export function Step2Plan() {
-  const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { goToStep } = useOnboardingNavigation();
+  const { data: session, status } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const accessToken = session?.accessToken as string | undefined;
 
   const [plans, setPlans] = useState<PlanInfo[]>([]);
@@ -161,9 +166,14 @@ export function Step2Plan() {
         { method: "POST" },
         accessToken,
       );
-      await updateSession({ onboardingStatus: data.onboardingStatus });
       toast.success("Probá gratis por 7 días");
-      nextStepAfterSave(2, data.onboardingStatus);
+      // `syncAndNavigate` actualiza la sesión + refresca el server +
+      // navega, garantizando que el server component destino vea la cookie
+      // nueva y no redirija al step previo.
+      await syncAndNavigate(
+        { onboardingStatus: data.onboardingStatus },
+        resolveOnboardingHref(data.onboardingStatus),
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al activar trial");
       setIsSkipping(false);

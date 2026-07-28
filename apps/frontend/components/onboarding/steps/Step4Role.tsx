@@ -8,16 +8,15 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
   OnboardingStatus,
-  statusToStep,
 } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { cn } from "@/utils/class-names";
 import { BACKEND_URL } from "@/lib/env";
-
-function goToOnboardingStep(status: OnboardingStatus) {
-  window.location.href = `/onboarding?step=${statusToStep(status)}`;
-}
 
 interface StoreInfo {
   id: string;
@@ -42,7 +41,8 @@ const ROLE_DESCRIPTIONS: Record<StoreRole, { title: string; description: string 
 
 export function Step4Role() {
   const { goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const accessToken = session?.accessToken as string | undefined;
 
   const [store, setStore] = useState<StoreInfo | null>(null);
@@ -93,8 +93,13 @@ export function Step4Role() {
         accessToken,
       );
       toast.success("Rol guardado");
-      await updateSession({ onboardingStatus: data.onboardingStatus });
-      goToOnboardingStep(data.onboardingStatus);
+      // Sincronizamos la sesión y navegamos al step correcto. Usamos el
+      // helper `syncAndNavigate` para evitar el redirect del server cuando
+      // todavía no leyó el JWT nuevo.
+      await syncAndNavigate(
+        { onboardingStatus: data.onboardingStatus },
+        resolveOnboardingHref(data.onboardingStatus),
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el rol");
       setIsSaving(false);

@@ -22,13 +22,94 @@ export class SyncedProduct {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column() tenantId: string;
   @Column() connectionId: string;
+  @Column() sourceStoreId: string;
   @Column() sourceProductId: string;
+  @Column() vendorStoreId: string;
   @Column() vendorProductId: string;
   @Column() sourceShopifyProductId: string;
   @Column() vendorShopifyProductId: string;
+  @Column({ default: 'PENDING' }) status: string;
+  @Column({ default: true }) syncEnabled: boolean;
   @Column({ type: 'varchar', nullable: true }) lastSourceVersion: string | null;
   @Column({ type: 'timestamptz', nullable: true }) lastSyncedAt: Date | null;
+  @Column({ type: 'text', nullable: true }) lastError: string | null;
+  @Column({ type: 'integer', nullable: true }) lastDurationMs: number | null;
   @Column({ default: true }) isActive: boolean;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+}
+
+@Entity('initial_sync_jobs')
+@Index('IDX_initial_sync_store_created', ['storeId', 'createdAt'])
+export class InitialSyncJob {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() tenantId: string;
+  @Column() storeId: string;
+  @Column({
+    type: 'enum',
+    enum: SyncBatchStatus,
+    enumName: 'sync_batches_status_enum',
+    default: SyncBatchStatus.PENDING,
+  })
+  status: SyncBatchStatus;
+  @Column({ type: 'integer', default: 0 }) totalProducts: number;
+  @Column({ type: 'integer', default: 0 }) processedProducts: number;
+  @Column({ type: 'integer', default: 0 }) succeededProducts: number;
+  @Column({ type: 'integer', default: 0 }) failedProducts: number;
+  @Column({ type: 'text', nullable: true }) lastError: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) startedAt: Date | null;
+  @Column({ type: 'timestamptz', nullable: true }) finishedAt: Date | null;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+}
+
+@Entity('inventory_snapshots')
+@Unique('UQ_inventory_snapshot_store_item', ['storeId', 'inventoryItemId'])
+@Index('IDX_inventory_snapshot_variant', ['variantId'])
+export class InventorySnapshot {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() tenantId: string;
+  @Column() storeId: string;
+  @Column() variantId: string;
+  @Column() inventoryItemId: string;
+  @Column({ type: 'integer', default: 0 }) availableQuantity: number;
+  @Column({ type: 'timestamptz', nullable: true }) shopifyUpdatedAt:
+    | Date
+    | null;
+  @Column({ type: 'text', nullable: true }) lastError: string | null;
+  @Column({ type: 'integer', nullable: true }) lastDurationMs: number | null;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+}
+
+@Entity('variant_syncs')
+@Unique('UQ_variant_sync_connection_source', ['connectionId', 'sourceVariantId'])
+@Index('IDX_variant_sync_source_variant', ['sourceVariantId'])
+@Index('IDX_variant_sync_vendor_variant', ['vendorVariantId'])
+@Index('IDX_variant_sync_connection_source', [
+  'connectionId',
+  'sourceVariantId',
+])
+export class VariantSync {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() tenantId: string;
+  @Column() productSyncId: string;
+  @Column() connectionId: string;
+  @Column() sourceStoreId: string;
+  @Column() vendorStoreId: string;
+  @Column() sourceVariantId: string;
+  @Column() vendorVariantId: string;
+  @Column({ type: 'varchar', nullable: true }) sourceInventoryItemId:
+    | string
+    | null;
+  @Column({ type: 'varchar', nullable: true }) vendorInventoryItemId:
+    | string
+    | null;
+  @Column({ default: 'PENDING' }) status: string;
+  @Column({ default: true }) syncEnabled: boolean;
+  @Column({ type: 'timestamptz', nullable: true }) lastSyncedAt: Date | null;
+  @Column({ type: 'text', nullable: true }) lastError: string | null;
+  @Column({ type: 'integer', nullable: true }) lastDurationMs: number | null;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

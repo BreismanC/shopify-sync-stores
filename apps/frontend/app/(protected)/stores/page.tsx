@@ -2,7 +2,7 @@ import { auth } from '@/auth';
 import { BACKEND_URL } from '@/lib/env';
 import { getCurrentStore } from '@/lib/store/current';
 import StoresClient from './stores-client';
-import { redirect, useParams } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 interface CurrentStoreApiResponse {
   store: {

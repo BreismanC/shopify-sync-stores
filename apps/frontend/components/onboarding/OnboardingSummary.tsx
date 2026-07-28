@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Check, ExternalLink } from "lucide-react";
@@ -10,7 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { ONBOARDING_STEPS } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/env";
 
 interface SummaryData {
@@ -25,10 +27,10 @@ interface SummaryData {
 }
 
 export function OnboardingSummary() {
-  const router = useRouter();
   const { goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
   const accessToken = session?.accessToken as string | undefined;
+  const syncAndNavigate = useSyncSessionAndNavigate();
 
   const [data, setData] = useState<SummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,9 +92,22 @@ export function OnboardingSummary() {
         { method: "POST" },
         accessToken,
       );
-      await updateSession({ onboardingStatus: result.onboardingStatus });
       toast.success("¡Onboarding completado!");
-      router.push("/dashboard");
+      // `syncAndNavigate` se encarga de llamar a `update()` (escribe la
+      // cookie de NextAuth), refrescar el cache del server component actual
+      // y navegar a `/dashboard`. Sin el refresh, el server lee el JWT
+      // viejo (onboardingStatus anterior), redirige al usuario a
+      // `/onboarding?step=5` y nunca se monta el sidebar.
+      //
+      // Usamos `forceReload: true` para forzar una full navigation:
+      // garantiza que el server component `app/(protected)/layout.tsx`
+      // ejecute `auth()` con el JWT recién escrito y monte el sidebar en el
+      // primer render del dashboard, sin necesidad de un F5 manual.
+      await syncAndNavigate(
+        { onboardingStatus: result.onboardingStatus },
+        "/dashboard",
+        { forceReload: true },
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al confirmar");
       setIsConfirming(false);

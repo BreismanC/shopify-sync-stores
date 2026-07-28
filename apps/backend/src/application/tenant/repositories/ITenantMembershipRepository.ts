@@ -17,6 +17,12 @@ export interface ITenantMembershipRepository {
     userId: string,
     tenantId: string,
   ): Promise<TenantMembership | null>;
+  /**
+   * Busca la membresía sin filtrar por estado. Necesario porque
+   * `(userId, tenantId)` es único: si sólo miráramos las ACTIVE,
+   * reactivar a alguien revocado provocaría una violación de unicidad.
+   */
+  findAny(userId: string, tenantId: string): Promise<TenantMembership | null>;
   findByTenantId(tenantId: string): Promise<TenantMembership[]>;
   create(input: CreateTenantMembershipInput): TenantMembership;
   save(membership: TenantMembership): Promise<TenantMembership>;

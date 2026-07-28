@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/Input";
 import { Form, FormField, FormSubmit } from "@/components/ui/Form";
 import { useFormDynamic } from "@/hooks/use-dynamic-form";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
-import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/env";
 
 interface TenantInfo {
@@ -18,8 +21,8 @@ interface TenantInfo {
 }
 
 export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
-  const { nextStepAfterSave } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const accessToken = session?.accessToken as string | undefined;
   const [existingTenant, setExistingTenant] = useState<TenantInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,14 +97,18 @@ export function Step1Company({ onCompleted }: { onCompleted?: () => void }) {
         existingTenant ? "Empresa actualizada" : "Empresa creada",
       );
 
-      await updateSession({
-        onboardingStatus: data.onboardingStatus,
-        tenantId: data.tenant.id,
-      });
-
       setFetchStatus("success");
       onCompleted?.();
-      nextStepAfterSave(1, data.onboardingStatus);
+      // `syncAndNavigate` actualiza el JWT, refresca el server component y
+      // navega al step correcto, evitando el redirect del server cuando
+      // todavía no leyó la cookie nueva.
+      await syncAndNavigate(
+        {
+          onboardingStatus: data.onboardingStatus,
+          tenantId: data.tenant.id,
+        },
+        resolveOnboardingHref(data.onboardingStatus),
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");
       setFetchStatus("error");

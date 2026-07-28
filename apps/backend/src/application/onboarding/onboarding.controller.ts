@@ -99,6 +99,17 @@ export class OnboardingController {
     return this.onboardingService.getStoreStatus(req.user.id);
   }
 
+  @Get('store/webhooks')
+  async listStoreWebhooks(@Req() req: RequestWithUser) {
+    return this.onboardingService.listStoreWebhooks(req.user.id);
+  }
+
+  @Post('store/webhooks/retry')
+  @HttpCode(HttpStatus.OK)
+  async retryStoreWebhooks(@Req() req: RequestWithUser) {
+    return this.onboardingService.retryStoreWebhooks(req.user.id);
+  }
+
   @Post('store/connect')
   @HttpCode(HttpStatus.OK)
   async connectStore(

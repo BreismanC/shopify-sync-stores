@@ -18,5 +18,6 @@ import { ShopifyWebhookController } from './shopify-webhook.controller';
     },
     ProcessShopifyWebhookUseCase,
   ],
+  exports: [IWebhookDeliveryRepository],
 })
 export class WebhookModule {}

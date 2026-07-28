@@ -94,6 +94,14 @@ export class SyncController {
     return this.syncRepository.findActiveBatch(req.tenantId, sourceStoreId);
   }
 
+  @Get('initial-sync/active')
+  activeInitialSync(
+    @Req() req: TenantRequest,
+    @Query('storeId') storeId: string,
+  ) {
+    return this.syncRepository.findActiveInitialSyncJob(req.tenantId, storeId);
+  }
+
   @Get('sync-batches/:batchId')
   async batch(@Req() req: TenantRequest, @Param('batchId') batchId: string) {
     const batch = await this.syncRepository.findBatch(req.tenantId, batchId);

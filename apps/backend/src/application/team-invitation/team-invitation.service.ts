@@ -23,6 +23,7 @@ import {
   InvitationStatus,
 } from '../../domain/entities/team_member.entity';
 import { UserRole } from '../../domain/enums/user-role.enum';
+import { TenantService } from '../tenant/tenant.service';
 import { EmailService } from '../../infrastructure/services/email/resend.service';
 
 export const INVITATION_TTL_HOURS = 24;
@@ -51,6 +52,7 @@ export class TeamInvitationService {
     private readonly userRepository: IUserRepository,
     @Inject(ITenantRepository)
     private readonly tenantRepository: ITenantRepository,
+    private readonly tenantService: TenantService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {
@@ -278,6 +280,15 @@ export class TeamInvitationService {
       await this.teamMemberRepository.save(teamMember);
     }
 
+    // `team_members` describe al equipo, pero TenantMembershipGuard valida
+    // contra `tenant_memberships`. Sin esta fila el invitado queda autenticado
+    // pero sin acceso a ningún recurso del tenant.
+    await this.tenantService.syncMembership(
+      user.id,
+      invitation.tenantId,
+      this.toUserRole(invitation.role),
+    );
+
     invitation.status = InvitationStatus.ACCEPTED;
     invitation.acceptedById = user.id;
     invitation.acceptedAt = new Date();
@@ -358,6 +369,7 @@ export class TeamInvitationService {
       if (member) {
         await this.teamMemberRepository.softDelete(member);
       }
+      await this.tenantService.revokeMembership(acceptedById, tenantId);
     }
   }
 
@@ -371,6 +383,15 @@ export class TeamInvitationService {
 
   private generateToken(): string {
     return randomBytes(32).toString('hex');
+  }
+
+  /** `invitation.role` es texto libre; cae a MEMBER si no es un rol conocido. */
+  private toUserRole(role: string | null | undefined): UserRole {
+    const candidate = role?.trim().toUpperCase();
+    const known = Object.values(UserRole) as string[];
+    return candidate && known.includes(candidate)
+      ? (candidate as UserRole)
+      : UserRole.MEMBER;
   }
 
   private async dispatchInvitationEmail(

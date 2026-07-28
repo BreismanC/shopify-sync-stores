@@ -8,6 +8,7 @@ import {
 } from '../../domain/enums/sync-status.enum';
 import {
   CreateSyncBatchUseCase,
+  GetProductsUseCase,
   ProcessProductSyncJobUseCase,
   ProductSourceAccessUseCase,
   QueueStoreReconciliationUseCase,
@@ -82,7 +83,78 @@ describe('Product sync use cases', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('queues a full Shopify reconciliation for an empty own catalog', async () => {
+  it('marks own products as synced because they exist in the catalog', async () => {
+    const product = { id: 'product-1', variants: [] };
+    const useCase = new GetProductsUseCase(
+      {
+        resolve: jest.fn().mockResolvedValue({
+          source: ownStore,
+          destination: ownStore,
+          connectionId: null,
+          kind: 'OWN',
+        }),
+      } as never,
+      {
+        listByStore: jest.fn().mockResolvedValue({ data: [product], total: 1 }),
+      } as never,
+      { findSnapshotsByVariantIds: jest.fn().mockResolvedValue([]) } as never,
+      { findSyncedProductIds: jest.fn() } as never,
+    );
+
+    const result = await useCase.execute(ownStore.tenantId, {
+      sourceStoreId: ownStore.id,
+      page: 1,
+      perPage: 20,
+      sortBy: 'createdAt',
+      order: 'desc',
+    });
+
+    expect(result.data[0]).toEqual(expect.objectContaining({ isSynced: true }));
+  });
+
+  it('marks connected products as synced only when a destination mapping exists', async () => {
+    const products = [
+      { id: 'product-synced', variants: [] },
+      { id: 'product-missing', variants: [] },
+    ];
+    const sync = {
+      findSyncedProductIds: jest.fn().mockResolvedValue(['product-synced']),
+    };
+    const useCase = new GetProductsUseCase(
+      {
+        resolve: jest.fn().mockResolvedValue({
+          source: sourceStore,
+          destination: ownStore,
+          connectionId: 'connection-1',
+          kind: 'CONNECTED',
+        }),
+      } as never,
+      {
+        listByStore: jest.fn().mockResolvedValue({ data: products, total: 2 }),
+      } as never,
+      { findSnapshotsByVariantIds: jest.fn().mockResolvedValue([]) } as never,
+      sync as never,
+    );
+
+    const result = await useCase.execute(ownStore.tenantId, {
+      sourceStoreId: sourceStore.id,
+      page: 1,
+      perPage: 20,
+      sortBy: 'createdAt',
+      order: 'desc',
+    });
+
+    expect(sync.findSyncedProductIds).toHaveBeenCalledWith('connection-1', [
+      'product-synced',
+      'product-missing',
+    ]);
+    expect(result.data).toEqual([
+      expect.objectContaining({ id: 'product-synced', isSynced: true }),
+      expect.objectContaining({ id: 'product-missing', isSynced: false }),
+    ]);
+  });
+
+  it('creates an initial sync job and queues the product scan', async () => {
     const access = {
       resolve: jest.fn().mockResolvedValue({
         source: ownStore,
@@ -91,9 +163,16 @@ describe('Product sync use cases', () => {
         kind: 'OWN',
       }),
     };
+    const initial = { id: 'initial-1' };
+    const sync = {
+      findActiveInitialSyncJob: jest.fn().mockResolvedValue(null),
+      createInitialSyncJob: jest.fn(() => initial),
+      saveInitialSyncJob: jest.fn().mockResolvedValue(initial),
+    };
     const queues = { publish: jest.fn().mockResolvedValue('refresh-job') };
     const useCase = new QueueStoreReconciliationUseCase(
       access as never,
+      sync as never,
       queues as never,
     );
 
@@ -103,16 +182,20 @@ describe('Product sync use cases', () => {
       UserRole.OWNER,
     );
 
-    expect(result).toEqual({ jobId: 'refresh-job', status: 'QUEUED' });
+    expect(result).toEqual({
+      jobId: 'refresh-job',
+      initialSyncJobId: initial.id,
+      status: SyncBatchStatus.PENDING,
+    });
     expect(queues.publish).toHaveBeenCalledWith(
       'reconciliation',
-      'reconcile-products',
+      'scan-products',
       expect.objectContaining({
         tenantId: ownStore.tenantId,
-        notifyTenantId: ownStore.tenantId,
         storeId: ownStore.id,
+        origin: 'initial_sync',
       }),
-      expect.objectContaining({ attempts: 3 }),
+      expect.objectContaining({ attempts: 5 }),
     );
   });
   it('creates one catalog refresh job per selected own product', async () => {
@@ -125,9 +208,16 @@ describe('Product sync use cases', () => {
       }),
     };
     const products = {
-      findByIdsForStore: jest
-        .fn()
-        .mockResolvedValue([{ id: 'product-1' }, { id: 'product-2' }]),
+      findByIdsForStore: jest.fn().mockResolvedValue([
+        {
+          id: 'product-1',
+          shopifyProductId: 'gid://shopify/Product/1',
+        },
+        {
+          id: 'product-2',
+          shopifyProductId: 'gid://shopify/Product/2',
+        },
+      ]),
     };
     const batch = {
       id: 'batch-1',
@@ -135,6 +225,7 @@ describe('Product sync use cases', () => {
       startedAt: null,
     };
     const sync = {
+      findActiveBatch: jest.fn().mockResolvedValue(null),
       createBatch: jest.fn((input: Record<string, unknown>) => ({
         ...batch,
         ...input,
@@ -162,17 +253,17 @@ describe('Product sync use cases', () => {
     expect(queues.publish).toHaveBeenCalledTimes(2);
     expect(queues.publish).toHaveBeenCalledWith(
       'product-sync',
-      'sync-product',
+      'product-sync-requested',
       expect.objectContaining({
-        sourceStoreId: ownStore.id,
+        storeId: ownStore.id,
         destinationStoreId: ownStore.id,
-        operation: SyncBatchOperation.CATALOG_REFRESH,
+        origin: 'manual_sync',
       }),
       expect.any(Object),
     );
   });
 
-  it('synchronizes every stored product when no product is selected', async () => {
+  it('queues a paginated Shopify scan when no product is selected', async () => {
     const access = {
       resolve: jest.fn().mockResolvedValue({
         source: ownStore,
@@ -182,9 +273,6 @@ describe('Product sync use cases', () => {
       }),
     };
     const products = {
-      findAllByStore: jest
-        .fn()
-        .mockResolvedValue([{ id: 'product-1' }, { id: 'product-2' }]),
       findByIdsForStore: jest.fn(),
     };
     const batch = {
@@ -193,6 +281,7 @@ describe('Product sync use cases', () => {
       startedAt: null,
     };
     const sync = {
+      findActiveBatch: jest.fn().mockResolvedValue(null),
       createBatch: jest.fn((input: Record<string, unknown>) => ({
         ...batch,
         ...input,
@@ -215,10 +304,20 @@ describe('Product sync use cases', () => {
       productIds: [],
     });
 
-    expect(products.findAllByStore).toHaveBeenCalledWith(ownStore.id);
     expect(products.findByIdsForStore).not.toHaveBeenCalled();
-    expect(result.total).toBe(2);
-    expect(queues.publish).toHaveBeenCalledTimes(2);
+    expect(result.total).toBe(0);
+    expect(queues.publish).toHaveBeenCalledTimes(1);
+    expect(queues.publish).toHaveBeenCalledWith(
+      'reconciliation',
+      'scan-products',
+      expect.objectContaining({
+        tenantId: ownStore.tenantId,
+        sourceTenantId: ownStore.tenantId,
+        storeId: ownStore.id,
+        batchId: 'batch-all',
+      }),
+      expect.any(Object),
+    );
   });
   it('refreshes an own product without calling Shopify productSet', async () => {
     const product = {

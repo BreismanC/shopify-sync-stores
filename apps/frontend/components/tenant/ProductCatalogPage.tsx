@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { io } from "socket.io-client";
 import { ChevronDown, RefreshCw } from "lucide-react";
-import { BACKEND_URL } from "@/lib/env";
 import { fetchWithAuth, useAuthFetch } from "@/lib/auth/fetch-with-auth";
+import { createSyncSocket } from "@/lib/realtime/sync-socket";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   DropdownMenu,
@@ -25,7 +24,7 @@ type Source = {
 type Product = {
   id: string;
   title: string;
-  status?: string;
+  isSynced: boolean;
   updatedAt?: string;
   images?: unknown;
   variants?: Array<{
@@ -41,12 +40,23 @@ type ProductResponse = {
 };
 type Progress = {
   batchId?: string;
+  sourceStoreId?: string;
+  storeId?: string;
   processed: number;
   total: number;
   succeeded: number;
   failed: number;
   skipped: number;
   status: string;
+};
+type InitialProgressResponse = {
+  id: string;
+  storeId: string;
+  status: string;
+  totalProducts: number;
+  processedProducts: number;
+  succeededProducts: number;
+  failedProducts: number;
 };
 
 const SORT_OPTIONS = [
@@ -63,6 +73,31 @@ function getProductImage(product: Product) {
   if (image && typeof image === "object" && "src" in image)
     return String((image as { src?: unknown }).src ?? "");
   return "";
+}
+
+function numericProgress(value: unknown, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function mergeProgress(
+  next: Partial<Progress> | null | undefined,
+  previous?: Progress | null,
+): Progress | null {
+  if (!next) return previous ?? null;
+  return {
+    ...previous,
+    ...next,
+    processed: numericProgress(next.processed, previous?.processed ?? 0),
+    total: numericProgress(
+      next.total,
+      previous?.total && previous.total > 0 ? previous.total : 0,
+    ),
+    succeeded: numericProgress(next.succeeded, previous?.succeeded ?? 0),
+    failed: numericProgress(next.failed, previous?.failed ?? 0),
+    skipped: numericProgress(next.skipped, previous?.skipped ?? 0),
+    status: String(next.status ?? previous?.status ?? "PENDING"),
+  };
 }
 
 export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
@@ -89,11 +124,20 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
     : null;
   const { data, mutate, isLoading } =
     useAuthFetch<ProductResponse>(productsEndpoint);
-  const { data: activeBatch } = useAuthFetch<Progress | null>(
+  const { data: activeBatch, mutate: mutateActiveBatch } =
+    useAuthFetch<Progress | null>(
     sourceId
       ? `/api/tenant/${tenantId}/sync-batches/active?sourceStoreId=${sourceId}`
       : null,
+    { refreshInterval: 1000, revalidateOnFocus: true },
   );
+  const { data: activeInitialSync, mutate: mutateActiveInitialSync } =
+    useAuthFetch<InitialProgressResponse | null>(
+      sourceId
+        ? `/api/tenant/${tenantId}/initial-sync/active?storeId=${sourceId}`
+        : null,
+      { refreshInterval: 1000, revalidateOnFocus: true },
+    );
   const products = data?.data ?? [];
   const totalPages =
     data?.pagination?.totalPages ??
@@ -110,6 +154,7 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
     progress?.status === "PENDING" ||
     activeBatch?.status === "RUNNING" ||
     activeBatch?.status === "PENDING";
+  const progressHasTotal = Boolean(progress && progress.total > 0);
   const pagination: PaginationMeta = {
     page,
     perPage: 20,
@@ -123,39 +168,108 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
     "Más recientes";
 
   useEffect(() => {
-    if (
-      activeBatch &&
-      activeBatch.status !== "COMPLETED" &&
-      activeBatch.status !== "FAILED"
-    )
-      setProgress(activeBatch);
+    if (activeBatch && (!activeBatch.sourceStoreId || activeBatch.sourceStoreId === sourceId))
+      setProgress((current) => mergeProgress(activeBatch, current));
   }, [activeBatch]);
 
   useEffect(() => {
+    if (!activeInitialSync) return;
+    setProgress((current) =>
+      mergeProgress(
+        {
+          storeId: activeInitialSync.storeId,
+          status: activeInitialSync.status,
+          total: activeInitialSync.totalProducts,
+          processed: activeInitialSync.processedProducts,
+          succeeded: activeInitialSync.succeededProducts,
+          failed: activeInitialSync.failedProducts,
+          skipped: 0,
+        },
+        current,
+      ),
+    );
+  }, [activeInitialSync]);
+
+  useEffect(() => {
+    const batchId = progress?.batchId;
+    if (
+      !batchId ||
+      !session?.accessToken ||
+      !["PENDING", "RUNNING"].includes(progress.status)
+    )
+      return;
+
+    let cancelled = false;
+    const reconcileBatch = async () => {
+      try {
+        const batch = await fetchWithAuth<Progress>(
+          `/api/tenant/${tenantId}/sync-batches/${batchId}`,
+          {},
+          session.accessToken,
+        );
+        if (cancelled) return;
+        setProgress((current) => mergeProgress(batch, current));
+        if (["COMPLETED", "PARTIAL", "FAILED"].includes(batch.status)) {
+          void mutate();
+        }
+      } catch {
+        // Socket.IO remains the primary realtime channel; a transient HTTP
+        // failure is retried on the next interval.
+      }
+    };
+
+    void reconcileBatch();
+    const interval = window.setInterval(() => void reconcileBatch(), 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [mutate, progress?.batchId, progress?.status, session?.accessToken, tenantId]);
+
+  useEffect(() => {
     if (!session?.accessToken) return;
-    const socket = io(`${BACKEND_URL}/sync`, {
-      auth: { token: session.accessToken },
-      transports: ["websocket", "polling"],
+    const socket = createSyncSocket(session.accessToken);
+    socket.on("connect", () => {
+      void mutateActiveBatch();
+      void mutateActiveInitialSync();
     });
     socket.on("sync.batch.progress", (event: Progress) => {
-      setProgress(event);
-      if (event.status === "COMPLETED" || event.status === "FAILED") {
+      if (event.sourceStoreId && event.sourceStoreId !== sourceId) return;
+      setProgress((current) => mergeProgress(event, current));
+      if (["COMPLETED", "PARTIAL", "FAILED"].includes(event.status)) {
         setNotice(
           `Sincronización finalizada: ${event.processed}/${event.total} procesados.`,
         );
         void mutate();
       }
     });
-    socket.on("products.reconciled", (event: { storeId?: string; imported?: number }) => {
+    socket.on("initial-sync.progress", (event: Progress) => {
       if (event.storeId === sourceId) {
-        setNotice(`Catálogo propio actualizado: ${event.imported ?? 0} productos importados.`);
+        setProgress((current) => mergeProgress(event, current));
+        if (["COMPLETED", "PARTIAL", "FAILED"].includes(event.status)) {
+          setNotice(
+            `Sincronización inicial finalizada: ${event.processed}/${event.total} procesados.`,
+          );
+        }
         void mutate();
       }
     });
+    socket.on(
+      "inventory.updated",
+      (event: { storeId?: string; availableQuantity?: number }) => {
+        if (event.storeId === sourceId) void mutate();
+      },
+    );
     return () => {
       socket.disconnect();
     };
-  }, [mutate, session?.accessToken, sourceId]);
+  }, [
+    mutate,
+    mutateActiveBatch,
+    mutateActiveInitialSync,
+    session?.accessToken,
+    sourceId,
+  ]);
 
   async function synchronize(input?: string[] | unknown) {
     if (!sourceId) return;
@@ -163,11 +277,6 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
     setBusy(true);
     setNotice("");
     try {
-      if (activeSource?.kind === "OWN" && productIds.length === 0 && (data?.total ?? 0) === 0) {
-        await fetchWithAuth(`/api/tenant/${tenantId}/product-sources/${sourceId}/refresh`, { method: "POST" }, session?.accessToken);
-        setNotice("Sincronización inicial encolada. La tabla se actualizará automáticamente al finalizar.");
-        return;
-      }
       const response = await fetchWithAuth<{ id?: string; total?: number }>(
         `/api/tenant/${tenantId}/sync-batches`,
         {
@@ -179,17 +288,18 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
       );
       setProgress({
         batchId: response.id,
+        sourceStoreId: sourceId,
         processed: 0,
-        total: response.total ?? productIds.length,
+        total:
+          response.total && response.total > 0
+            ? response.total
+            : productIds.length || activeSource?.productCount || 0,
         succeeded: 0,
         failed: 0,
         skipped: 0,
-        status: "RUNNING",
+        status: "PENDING",
       });
       setSelected([]);
-      setNotice(
-        "Sincronización iniciada. El progreso se actualizará en tiempo real.",
-      );
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -220,6 +330,7 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
               setSourceId(event.target.value);
               setPage(1);
               setSelected([]);
+              setProgress(null);
             }}
             aria-label="Seleccionar tienda"
           >
@@ -250,12 +361,16 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
         >
           <span className={isRunning ? "animate-spin" : ""}>⟳</span>
           {isRunning
-            ? `Sincronizando ${progress.processed}/${progress.total}`
+            ? progressHasTotal
+              ? `Sincronizando ${progress.processed}/${progress.total}`
+              : "Preparando sincronización"
             : `Sincronización ${progress.status === "FAILED" ? "con errores" : "completada"}`}
-          <span className="text-xs">
-            · {progress.succeeded} exitosos · {progress.failed} fallidos ·{" "}
-            {progress.skipped} omitidos
-          </span>
+          {progressHasTotal && (
+            <span className="text-xs">
+              · {progress.succeeded} exitosos · {progress.failed} fallidos ·{" "}
+              {progress.skipped} omitidos
+            </span>
+          )}
         </div>
       )}
       {notice && (
@@ -407,9 +522,19 @@ export default function ProductCatalogPage({ tenantId }: { tenantId: string }) {
                         variante{product.variants?.length === 1 ? "" : "s"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
-                          {product.status ?? "Sincronizado"}
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                            product.isSynced
+                              ? "bg-emerald-500/10 text-emerald-600"
+                              : "bg-amber-500/10 text-amber-700"
+                          }`}
+                        >
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              product.isSynced ? "bg-emerald-500" : "bg-amber-500"
+                            }`}
+                          />
+                          {product.isSynced ? "Sincronizado" : "No sincronizado"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

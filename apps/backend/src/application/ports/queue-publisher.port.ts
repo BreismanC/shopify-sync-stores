@@ -3,6 +3,8 @@ export interface QueueJobOptions {
   attempts?: number;
   backoffMs?: number;
   delay?: number;
+  deduplicationId?: string;
+  deduplicationTtl?: number;
 }
 
 export abstract class IQueuePublisher {

@@ -6,6 +6,7 @@ import {
   ProductVariantSnapshot,
 } from '../../../domain/entities/product-snapshot.entity';
 import {
+  InitialSyncJob,
   SyncBatch,
   SyncEvent,
   SyncSettings,
@@ -65,6 +66,16 @@ export class TypeOrmProductRepository implements IProductRepository {
     });
   }
 
+  listIdsByStore(storeId: string, offset: number, limit: number) {
+    return this.repository.find({
+      select: { id: true, shopifyProductId: true },
+      where: { storeId, deletedAt: IsNull() },
+      order: { id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+  }
+
   findByIdsForStore(storeId: string, ids: string[]) {
     return this.repository.find({
       where: { storeId, id: In(ids), deletedAt: IsNull() },
@@ -108,6 +119,13 @@ export class TypeOrmProductRepository implements IProductRepository {
     });
   }
 
+  findVariantById(storeId: string, id: string) {
+    return this.variants.findOne({
+      where: { storeId, id },
+      relations: { product: true },
+    });
+  }
+
   findVariantBySku(storeId: string, sku: string) {
     return this.variants.findOne({
       where: { storeId, sku },
@@ -126,6 +144,8 @@ export class TypeOrmSyncRepository implements ISyncRepository {
     @InjectRepository(SyncEvent) private readonly events: Repository<SyncEvent>,
     @InjectRepository(SyncedProduct)
     private readonly products: Repository<SyncedProduct>,
+    @InjectRepository(InitialSyncJob)
+    private readonly initialSyncJobs: Repository<InitialSyncJob>,
   ) {}
 
   getSettings(tenantId: string, connectionId: string | null) {
@@ -147,6 +167,34 @@ export class TypeOrmSyncRepository implements ISyncRepository {
   }
 
   saveBatch(batch: SyncBatch) {
+    return this.batches.save(batch);
+  }
+
+  async setBatchTotalAndRunning(batchId: string, total: number) {
+    const batch = await this.batches.findOne({ where: { id: batchId } });
+    if (!batch) return null;
+    batch.total = total;
+    batch.startedAt ??= new Date();
+    if (batch.processed >= total) {
+      batch.status =
+        batch.failed === 0
+          ? SyncBatchStatus.COMPLETED
+          : batch.succeeded === 0
+            ? SyncBatchStatus.FAILED
+            : SyncBatchStatus.PARTIAL;
+      batch.finishedAt ??= new Date();
+    } else {
+      batch.status = SyncBatchStatus.RUNNING;
+    }
+    return this.batches.save(batch);
+  }
+
+  async failBatch(batchId: string, error: string) {
+    const batch = await this.batches.findOne({ where: { id: batchId } });
+    if (!batch || batch.finishedAt) return batch;
+    batch.status = SyncBatchStatus.FAILED;
+    batch.finishedAt = new Date();
+    batch.summary = { ...batch.summary, scanError: error };
     return this.batches.save(batch);
   }
 
@@ -237,5 +285,112 @@ export class TypeOrmSyncRepository implements ISyncRepository {
 
   saveSyncedProduct(product: SyncedProduct) {
     return this.products.save(product);
+  }
+
+  findActiveSyncedProducts(sourceStoreId: string, sourceProductId: string) {
+    return this.products.find({
+      where: {
+        sourceStoreId,
+        sourceProductId,
+        isActive: true,
+        syncEnabled: true,
+      },
+    });
+  }
+
+  async findSyncedProductIds(connectionId: string, sourceProductIds: string[]) {
+    if (sourceProductIds.length === 0) return [];
+    const mappings = await this.products.find({
+      select: { sourceProductId: true },
+      where: {
+        connectionId,
+        sourceProductId: In(sourceProductIds),
+        status: 'SYNCED',
+        isActive: true,
+      },
+    });
+    return mappings.map((mapping) => mapping.sourceProductId);
+  }
+
+  createInitialSyncJob(input: Partial<InitialSyncJob>) {
+    return this.initialSyncJobs.create(input);
+  }
+
+  saveInitialSyncJob(job: InitialSyncJob) {
+    return this.initialSyncJobs.save(job);
+  }
+
+  findInitialSyncJob(tenantId: string, id: string) {
+    return this.initialSyncJobs.findOne({ where: { tenantId, id } });
+  }
+
+  findActiveInitialSyncJob(tenantId: string, storeId: string) {
+    return this.initialSyncJobs.findOne({
+      where: {
+        tenantId,
+        storeId,
+        status: In([SyncBatchStatus.PENDING, SyncBatchStatus.RUNNING]),
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async setInitialSyncTotalAndRunning(id: string, total: number) {
+    const job = await this.initialSyncJobs.findOne({ where: { id } });
+    if (!job) return null;
+    job.totalProducts = total;
+    job.startedAt ??= new Date();
+    if (job.processedProducts >= total) {
+      job.status =
+        job.failedProducts === 0
+          ? SyncBatchStatus.COMPLETED
+          : job.succeededProducts === 0
+            ? SyncBatchStatus.FAILED
+            : SyncBatchStatus.PARTIAL;
+      job.finishedAt ??= new Date();
+    } else {
+      job.status = SyncBatchStatus.RUNNING;
+    }
+    return this.initialSyncJobs.save(job);
+  }
+
+  async failInitialSyncJob(id: string, error: string) {
+    const job = await this.initialSyncJobs.findOne({ where: { id } });
+    if (!job || job.finishedAt) return job;
+    job.status = SyncBatchStatus.FAILED;
+    job.lastError = error;
+    job.finishedAt = new Date();
+    return this.initialSyncJobs.save(job);
+  }
+
+  async recordInitialSyncResult(
+    id: string,
+    result: 'succeeded' | 'failed',
+    error?: string,
+  ) {
+    await this.initialSyncJobs
+      .createQueryBuilder()
+      .update(InitialSyncJob)
+      .set({
+        processedProducts: () => '"processedProducts" + 1',
+        [result === 'succeeded' ? 'succeededProducts' : 'failedProducts']: () =>
+          `"${result === 'succeeded' ? 'succeededProducts' : 'failedProducts'}" + 1`,
+        ...(error ? { lastError: error } : {}),
+      })
+      .where('id = :id', { id })
+      .andWhere('"processedProducts" < "totalProducts"')
+      .execute();
+    const job = await this.initialSyncJobs.findOne({ where: { id } });
+    if (job && job.processedProducts >= job.totalProducts && !job.finishedAt) {
+      job.status =
+        job.failedProducts === 0
+          ? SyncBatchStatus.COMPLETED
+          : job.succeededProducts === 0
+            ? SyncBatchStatus.FAILED
+            : SyncBatchStatus.PARTIAL;
+      job.finishedAt = new Date();
+      return this.initialSyncJobs.save(job);
+    }
+    return job;
   }
 }

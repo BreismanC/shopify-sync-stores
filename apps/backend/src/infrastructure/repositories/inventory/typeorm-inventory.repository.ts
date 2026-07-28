@@ -1,27 +1,60 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InventoryLocationMapping } from '../../../domain/entities/sync.entity';
+import { In, Repository } from 'typeorm';
+import {
+  InventorySnapshot,
+  VariantSync,
+} from '../../../domain/entities/sync.entity';
 import { IInventoryRepository } from '../../../application/inventory/repositories/inventory.repository';
 
 @Injectable()
 export class TypeOrmInventoryRepository implements IInventoryRepository {
   constructor(
-    @InjectRepository(InventoryLocationMapping)
-    private readonly repository: Repository<InventoryLocationMapping>,
+    @InjectRepository(InventorySnapshot)
+    private readonly snapshots: Repository<InventorySnapshot>,
+    @InjectRepository(VariantSync)
+    private readonly variantSyncs: Repository<VariantSync>,
   ) {}
-  findLocationMapping(connectionId: string, sourceLocationId: string) {
-    return this.repository.findOne({
-      where: { connectionId, sourceLocationId, isActive: true },
+
+  findSnapshotByInventoryItem(storeId: string, inventoryItemId: string) {
+    return this.snapshots.findOne({
+      where: { storeId, inventoryItemId },
     });
   }
-  listMappings(tenantId: string, connectionId: string) {
-    return this.repository.find({ where: { tenantId, connectionId } });
+
+  findSnapshotsByVariantIds(variantIds: string[]) {
+    if (!variantIds.length) return Promise.resolve([]);
+    return this.snapshots.find({ where: { variantId: In(variantIds) } });
   }
-  saveMapping(mapping: InventoryLocationMapping) {
-    return this.repository.save(mapping);
+
+  createSnapshot(input: Partial<InventorySnapshot>) {
+    return this.snapshots.create(input);
   }
-  createMapping(input: Partial<InventoryLocationMapping>) {
-    return this.repository.create(input);
+
+  saveSnapshot(snapshot: InventorySnapshot) {
+    return this.snapshots.save(snapshot);
+  }
+
+  findVariantSync(connectionId: string, sourceVariantId: string) {
+    return this.variantSyncs.findOne({
+      where: { connectionId, sourceVariantId },
+    });
+  }
+
+  findActiveVariantSyncsBySourceVariant(sourceVariantId: string) {
+    return this.variantSyncs.find({
+      where: {
+        sourceVariantId,
+        syncEnabled: true,
+      },
+    });
+  }
+
+  createVariantSync(input: Partial<VariantSync>) {
+    return this.variantSyncs.create(input);
+  }
+
+  saveVariantSync(sync: VariantSync) {
+    return this.variantSyncs.save(sync);
   }
 }

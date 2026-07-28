@@ -9,13 +9,18 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Form, FormField, FormSubmit } from "@/components/ui/Form";
 import { useFormDynamic } from "@/hooks/use-dynamic-form";
-import {
-  OnboardingStatus,
-  statusToStep,
-} from "@/lib/auth/onboarding-status";
+import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/env";
+import {
+  StoreWebhooksDetails,
+  type WebhooksSummary,
+} from "./StoreWebhooksDetails";
 
 interface StoreInfo {
   id: string;
@@ -24,19 +29,21 @@ interface StoreInfo {
   isActive: boolean;
 }
 
-function goToOnboardingStep(status: OnboardingStatus) {
-  const step = statusToStep(status);
-  // Hard navigation: asegura que proxy/layout lean el JWT ya actualizado.
-  window.location.href = `/onboarding?step=${step}`;
-}
-
 export function Step3Store() {
   const { goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const accessToken = session?.accessToken as string | undefined;
 
   const [existingStore, setExistingStore] = useState<StoreInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [webhooksSummary, setWebhooksSummary] = useState<WebhooksSummary>({
+    total: 0,
+    connected: 0,
+    pending: 0,
+    failed: 0,
+    allConnected: false,
+  });
 
   const { field, getValues, setValue, setFetchStatus, fetchStatus, setTouch } =
     useFormDynamic({
@@ -92,6 +99,15 @@ export function Step3Store() {
 
     // Tienda ya conectada y sin token nuevo → confirmar y avanzar status.
     if (existingStore && shopifyAccessToken.length < 10) {
+      // Bloqueamos el avance si los webhooks todavía no están todos
+      // conectados. El backend igual valida y devuelve 409 si esto se
+      // cuela; acá evitamos el round-trip y le damos feedback inmediato.
+      if (!webhooksSummary.allConnected) {
+        toast.error(
+          "Esperá a que todos los webhooks estén conectados antes de continuar.",
+        );
+        return;
+      }
       setFetchStatus("loading");
       try {
         const data = await apiFetch<{
@@ -103,11 +119,22 @@ export function Step3Store() {
           accessToken,
         );
         toast.success("Tienda conectada");
-        await updateSession({ onboardingStatus: data.onboardingStatus });
         setFetchStatus("success");
-        goToOnboardingStep(data.onboardingStatus);
+        // `forceReload: true` fuerza una full navigation con
+        // `window.location.href`, garantizando que el server component destino
+        // ejecute `auth()` con la cookie recién escrita. Sin esto, el server
+        // puede leer el JWT viejo y mandarnos al step anterior.
+        await syncAndNavigate(
+          { onboardingStatus: data.onboardingStatus },
+          resolveOnboardingHref(data.onboardingStatus),
+          { forceReload: true },
+        );
       } catch (err: any) {
-        toast.error(err.message || "Error al continuar");
+        const message =
+          err?.body?.code === "WEBHOOKS_NOT_READY"
+            ? "Hay webhooks obligatorios sin conectar. Esperá a que finalicen o reintentá."
+            : err?.message || "Error al continuar";
+        toast.error(message);
         setFetchStatus("error");
       }
       return;
@@ -144,11 +171,17 @@ export function Step3Store() {
       );
 
       toast.success("Tienda conectada");
-      await updateSession({ onboardingStatus: data.onboardingStatus });
       setFetchStatus("success");
-      goToOnboardingStep(data.onboardingStatus);
+      const href = resolveOnboardingHref(data.onboardingStatus);
+      await syncAndNavigate({ onboardingStatus: data.onboardingStatus }, href, {
+        forceReload: true,
+      });
     } catch (err: any) {
-      toast.error(err.message || "Error al conectar la tienda");
+      const message =
+        err?.body?.code === "WEBHOOKS_REGISTRATION_FAILED"
+          ? "Algunos webhooks obligatorios no pudieron registrarse. Revisa los detalles y reintentá."
+          : err?.message || "Error al conectar la tienda";
+      toast.error(message);
       setFetchStatus("error");
     }
   };
@@ -216,6 +249,12 @@ export function Step3Store() {
           />
         </FormField>
 
+        <StoreWebhooksDetails
+          accessToken={accessToken}
+          initiallyOpen={Boolean(existingStore)}
+          onChange={setWebhooksSummary}
+        />
+
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-between">
           <Button
             type="button"
@@ -227,10 +266,21 @@ export function Step3Store() {
             Volver al paso 2
           </Button>
           <FormSubmit
-            className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none"
+            className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none disabled:cursor-not-allowed disabled:opacity-50"
             fetchStatus={fetchStatus}
+            disabled={Boolean(
+              existingStore &&
+              !webhooksSummary.allConnected &&
+              webhooksSummary.total > 0,
+            )}
             buttonProps={{
-              label: existingStore ? "Continuar" : "Conectar tienda",
+              label: existingStore
+                ? webhooksSummary.total === 0
+                  ? "Cargando webhooks…"
+                  : webhooksSummary.allConnected
+                    ? "Continuar"
+                    : "Esperando webhooks…"
+                : "Conectar tienda",
             }}
           />
         </div>

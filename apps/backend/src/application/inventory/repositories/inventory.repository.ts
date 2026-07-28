@@ -1,18 +1,27 @@
-import { InventoryLocationMapping } from '../../../domain/entities/sync.entity';
+import {
+  InventorySnapshot,
+  VariantSync,
+} from '../../../domain/entities/sync.entity';
 
 export abstract class IInventoryRepository {
-  abstract findLocationMapping(
+  abstract findSnapshotByInventoryItem(
+    storeId: string,
+    inventoryItemId: string,
+  ): Promise<InventorySnapshot | null>;
+  abstract findSnapshotsByVariantIds(
+    variantIds: string[],
+  ): Promise<InventorySnapshot[]>;
+  abstract createSnapshot(input: Partial<InventorySnapshot>): InventorySnapshot;
+  abstract saveSnapshot(
+    snapshot: InventorySnapshot,
+  ): Promise<InventorySnapshot>;
+  abstract findVariantSync(
     connectionId: string,
-    sourceLocationId: string,
-  ): Promise<InventoryLocationMapping | null>;
-  abstract listMappings(
-    tenantId: string,
-    connectionId: string,
-  ): Promise<InventoryLocationMapping[]>;
-  abstract saveMapping(
-    mapping: InventoryLocationMapping,
-  ): Promise<InventoryLocationMapping>;
-  abstract createMapping(
-    input: Partial<InventoryLocationMapping>,
-  ): InventoryLocationMapping;
+    sourceVariantId: string,
+  ): Promise<VariantSync | null>;
+  abstract findActiveVariantSyncsBySourceVariant(
+    sourceVariantId: string,
+  ): Promise<VariantSync[]>;
+  abstract createVariantSync(input: Partial<VariantSync>): VariantSync;
+  abstract saveVariantSync(sync: VariantSync): Promise<VariantSync>;
 }

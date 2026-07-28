@@ -6,11 +6,14 @@ import {
 } from '../../domain/entities/product-snapshot.entity';
 import {
   InventoryLocationMapping,
+  InventorySnapshot,
+  InitialSyncJob,
   ReconciliationCheckpoint,
   SyncBatch,
   SyncEvent,
   SyncSettings,
   SyncedProduct,
+  VariantSync,
 } from '../../domain/entities/sync.entity';
 import {
   OrderLineMapping,
@@ -38,17 +41,28 @@ import {
   GetProductSourcesUseCase,
   ProcessProductSyncJobUseCase,
   ProcessProductWebhookUseCase,
+  ProcessAppUninstalledWebhookUseCase,
   ProductSourceAccessUseCase,
   QueueStoreReconciliationUseCase,
   ReconcileStoreUseCase,
   UpsertProductSnapshotUseCase,
   UpdateSyncSettingsUseCase,
 } from './sync.use-cases';
+import {
+  DispatchVendorProductSyncUseCase,
+  ProcessProductRequestedUseCase,
+  ProcessVendorProductSyncUseCase,
+  QueueInitialSyncUseCase,
+  ScanProductsForSyncUseCase,
+} from './product-sync-pipeline.use-cases';
 import { SyncWorkerService } from '../../infrastructure/queue/sync-worker.service';
 import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
 import { TypeOrmInventoryRepository } from '../../infrastructure/repositories/inventory/typeorm-inventory.repository';
-import { ProcessInventoryWebhookUseCase } from '../inventory/inventory.use-cases';
-import { InventoryController } from '../inventory/inventory.controller';
+import {
+  DispatchVendorInventorySyncUseCase,
+  ProcessInventorySyncRequestedUseCase,
+  ProcessVendorInventorySyncUseCase,
+} from '../inventory/inventory.use-cases';
 import { NotificationModule } from '../notification/notification.module';
 import { IOrderRepository } from '../order/repositories/order.repository';
 import { TypeOrmOrderRepository } from '../../infrastructure/repositories/order/typeorm-order.repository';
@@ -61,6 +75,7 @@ import { DashboardController } from '../dashboard/dashboard.controller';
 import { IDashboardRepository } from '../dashboard/dashboard.repository';
 import { TypeOrmDashboardRepository } from '../../infrastructure/repositories/dashboard/typeorm-dashboard.repository';
 import { ShopifyModule } from '../shopify/shopify.module';
+import { WebhookModule } from '../webhook/webhook.module';
 
 @Module({
   imports: [
@@ -72,21 +87,24 @@ import { ShopifyModule } from '../shopify/shopify.module';
       SyncBatch,
       SyncEvent,
       InventoryLocationMapping,
+      InventorySnapshot,
+      VariantSync,
       ReconciliationCheckpoint,
       SyncedOrder,
       OrderLineMapping,
       Payout,
       WebhookDelivery,
+      InitialSyncJob,
     ]),
     AuthModule,
     TenantModule,
     StoreModule,
     NotificationModule,
     ShopifyModule,
+    WebhookModule,
   ],
   controllers: [
     SyncController,
-    InventoryController,
     OrderController,
     DashboardController,
   ],
@@ -111,7 +129,15 @@ import { ShopifyModule } from '../shopify/shopify.module';
     CreateSyncBatchUseCase,
     ProcessProductSyncJobUseCase,
     ProcessProductWebhookUseCase,
-    ProcessInventoryWebhookUseCase,
+    ProcessAppUninstalledWebhookUseCase,
+    QueueInitialSyncUseCase,
+    ScanProductsForSyncUseCase,
+    ProcessProductRequestedUseCase,
+    DispatchVendorProductSyncUseCase,
+    ProcessVendorProductSyncUseCase,
+    ProcessInventorySyncRequestedUseCase,
+    DispatchVendorInventorySyncUseCase,
+    ProcessVendorInventorySyncUseCase,
     GetOrdersUseCase,
     ProcessOrderWebhookUseCase,
     SyncWorkerService,
@@ -122,8 +148,11 @@ import { ShopifyModule } from '../shopify/shopify.module';
     ProcessProductSyncJobUseCase,
     ReconcileStoreUseCase,
     ProcessProductWebhookUseCase,
-    ProcessInventoryWebhookUseCase,
+    ProcessInventorySyncRequestedUseCase,
+    DispatchVendorInventorySyncUseCase,
+    ProcessVendorInventorySyncUseCase,
     ProcessOrderWebhookUseCase,
+    QueueInitialSyncUseCase,
   ],
 })
 export class SyncModule {}

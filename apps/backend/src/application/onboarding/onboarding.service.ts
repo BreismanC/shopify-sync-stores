@@ -1,9 +1,11 @@
 import {
   Injectable,
   Inject,
+  Optional,
   BadRequestException,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import {
   IUSER_REPOSITORY,
@@ -11,6 +13,10 @@ import {
 } from '../auth/repositories/IUserRepository';
 import { ITenantRepository } from '../tenant/repositories/ITenantRepository';
 import { IStoreRepository } from '../store/repositories/IStoreRepository';
+import {
+  IStoreWebhookRepository,
+  StoreWebhookRow,
+} from '../store/repositories/IStoreWebhookRepository';
 import { ITeamMemberRepository } from '../team-member/repositories/ITeamMemberRepository';
 import { ISubscriptionRepository } from '../subscription/repositories/ISubscriptionRepository';
 import { SubscriptionService } from '../subscription/subscription.service';
@@ -34,6 +40,18 @@ import { EncryptionUtil } from '../../infrastructure/security/encryption.util';
 import { MercadoPagoService } from '../../infrastructure/mercadopago/mercadopago.service';
 import { MercadoPagoTokenService } from '../../infrastructure/mercadopago/mercadopago-token.service';
 import { TeamInvitationService } from '../team-invitation/team-invitation.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  IShopifyProductPort,
+  IShopifyWebhookPort,
+} from '../shopify/ports/shopify.ports';
+import { QueueInitialSyncUseCase } from '../sync/product-sync-pipeline.use-cases';
+import {
+  ALL_WEBHOOK_TOPICS,
+  WebhookStatus,
+  WebhookTopic,
+} from '../../domain/enums/webhook-topic.enum';
+import { IRealtimePublisher } from '../ports/realtime-publisher.port';
 
 export interface UpsertTenantInput {
   name: string;
@@ -62,10 +80,15 @@ export interface CreatePreferenceInput {
 
 @Injectable()
 export class OnboardingService {
+  private readonly logger = new Logger(OnboardingService.name);
+
   constructor(
     @Inject(IUSER_REPOSITORY) private readonly userRepository: IUserRepository,
-    @Inject(ITenantRepository) private readonly tenantRepository: ITenantRepository,
+    @Inject(ITenantRepository)
+    private readonly tenantRepository: ITenantRepository,
     private readonly storeRepository: IStoreRepository,
+    @Inject(IStoreWebhookRepository)
+    private readonly storeWebhookRepository: IStoreWebhookRepository,
     private readonly teamMemberRepository: ITeamMemberRepository,
     private readonly subscriptionRepository: ISubscriptionRepository,
     private readonly subscriptionService: SubscriptionService,
@@ -73,6 +96,15 @@ export class OnboardingService {
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoTokenService: MercadoPagoTokenService,
     private readonly teamInvitationService: TeamInvitationService,
+    @Inject(IShopifyWebhookPort)
+    private readonly shopifyWebhooks: IShopifyWebhookPort,
+    @Inject(IRealtimePublisher)
+    private readonly realtimePublisher: IRealtimePublisher,
+    @Optional() private readonly config?: ConfigService,
+    @Optional()
+    @Inject(IShopifyProductPort)
+    private readonly shopifyProducts?: IShopifyProductPort,
+    @Optional() private readonly queueInitialSync?: QueueInitialSyncUseCase,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -435,9 +467,10 @@ export class OnboardingService {
     tenant.onboardingStatus = OnboardingStatus.PENDING_STORE_CONFIG;
     await this.tenantRepository.save(tenant);
 
-    const users = await this.userRepository.findByTenantId(subscription.tenantId);
-    const owner =
-      users.find((u) => u.role === 'OWNER') ?? users[0] ?? null;
+    const users = await this.userRepository.findByTenantId(
+      subscription.tenantId,
+    );
+    const owner = users.find((u) => u.role === 'OWNER') ?? users[0] ?? null;
 
     return {
       userId: owner?.id ?? '',
@@ -484,6 +517,12 @@ export class OnboardingService {
       );
     }
 
+    if (this.shopifyProducts)
+      await this.shopifyProducts.countProducts({
+        shopDomain: shopifyShopId,
+        accessToken: input.shopifyAccessToken,
+      });
+
     // Cifrar el accessToken antes de persistir
     const encryptedToken = EncryptionUtil.encrypt(input.shopifyAccessToken);
 
@@ -502,12 +541,363 @@ export class OnboardingService {
     store.isActive = true;
     const saved = await this.storeRepository.save(store);
 
+    // Persistimos/actualizamos una fila PENDING por cada webhook soportado
+    // antes de pegarle a Shopify. Esto permite que la UI muestre el estado
+    // inicial de cada uno apenas termine el POST de connect.
+    const callbackUrl = this.buildShopifyWebhookCallbackUrl();
+    const initialWebhooks = await this.seedStoreWebhooks(
+      saved,
+      callbackUrl,
+      userId,
+    );
+
+    // Registramos cada webhook contra Shopify. Por cada uno: persistimos
+    // el resultado y emitimos un evento realtime para que la UI actualice
+    // el estado sin polling. Los webhooks opcionales pueden fallar sin
+    // bloquear; los obligatorios, si fallan, hacen rollback del avance de
+    // status (dejamos al tenant en PENDING_STORE_CONFIG y lanzamos error).
+    const registration = await this.registerStoreWebhooks(
+      saved,
+      callbackUrl,
+      initialWebhooks,
+      userId,
+    );
+
+    if (!registration.allRequiredConnected) {
+      // No avanzamos el status. La tienda queda guardada para que el
+      // usuario pueda reintentar con el botón "Continuar" (que en realidad
+      // va a invocar `confirmStore`, que también valida).
+      throw new BadRequestException({
+        message:
+          'Algunos webhooks obligatorios no pudieron registrarse. Revisa los detalles y reintenta.',
+        code: 'WEBHOOKS_REGISTRATION_FAILED',
+        webhooks: registration.rows,
+        failedTopics: registration.rows
+          .filter((row) => row.status === WebhookStatus.FAILED)
+          .map((row) => row.topic),
+      });
+    }
+
+    if (this.queueInitialSync)
+      await this.queueInitialSync.execute(saved.tenantId, saved.id);
+
     const onboardingStatus = await this.ensureTenantStatusAtLeast(
       user.tenantId,
       OnboardingStatus.PENDING_STORE_ROLE,
     );
 
     return { store: saved, onboardingStatus };
+  }
+
+  /**
+   * Devuelve la URL pública a la que Shopify deberá mandar los webhooks.
+   * Prioriza `BACKEND_PUBLIC_URL` y cae sobre `BACKEND_URL` o localhost.
+   * Esta URL es la que se persiste en `store_webhooks.callbackUrl` para
+   * detectar rotaciones de entorno.
+   */
+  private buildShopifyWebhookCallbackUrl(): string {
+    const publicUrl =
+      this.config?.get<string>('BACKEND_PUBLIC_URL') ??
+      this.config?.get<string>('BACKEND_URL') ??
+      'http://localhost:3001';
+    return `${publicUrl.replace(/\/$/, '')}/api/webhooks/shopify`;
+  }
+
+  /**
+   * Shopify solo acepta destinos de webhook públicos y sobre HTTPS. Si el
+   * backend corre en local sin túnel, la suscripción falla con un userError
+   * genérico por cada topic. Detectarlo acá nos deja explicar el problema
+   * real (falta `BACKEND_PUBLIC_URL`) en vez de propagar 8 errores opacos.
+   *
+   * Devuelve `null` si la URL sirve, o el motivo del rechazo si no.
+   */
+  private describeUnreachableCallbackUrl(callbackUrl: string): string | null {
+    let parsed: URL;
+    try {
+      parsed = new URL(callbackUrl);
+    } catch {
+      return `La URL de callback "${callbackUrl}" no es válida. Configurá BACKEND_PUBLIC_URL con una URL https pública.`;
+    }
+
+    const host = parsed.hostname;
+    const isLoopback =
+      host === 'localhost' ||
+      host === '::1' ||
+      host === '0.0.0.0' ||
+      /^127\./.test(host);
+    const isPrivateLan =
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+
+    if (isLoopback || isPrivateLan) {
+      return `Shopify no puede alcanzar "${callbackUrl}" porque apunta a una red local. Configurá BACKEND_PUBLIC_URL con una URL https pública (por ejemplo, la que expone \`ngrok http 3001\`).`;
+    }
+    if (parsed.protocol !== 'https:') {
+      return `Shopify exige HTTPS para los webhooks y "${callbackUrl}" usa ${parsed.protocol.replace(':', '')}. Configurá BACKEND_PUBLIC_URL con una URL https pública.`;
+    }
+    return null;
+  }
+
+  /**
+   * Inserta (o actualiza con `callbackUrl` nuevo) una fila por topic. Esto
+   * le garantiza al frontend tener un esqueleto visible apenas termine el
+   * `POST /onboarding/store/connect`, sin esperar al primer update de
+   * Shopify.
+   */
+  private async seedStoreWebhooks(
+    store: Store,
+    callbackUrl: string,
+    userId?: string,
+  ): Promise<StoreWebhookRow[]> {
+    const now = new Date();
+    const rows: StoreWebhookRow[] = [];
+    for (const topic of ALL_WEBHOOK_TOPICS) {
+      const row = await this.storeWebhookRepository.upsert({
+        storeId: store.id,
+        topic,
+        callbackUrl,
+        shopifyWebhookId: null,
+        status: WebhookStatus.PENDING,
+        lastError: null,
+        attempts: 0,
+        lastAttemptAt: now,
+      });
+      rows.push(row);
+      await this.publishWebhookUpsert(store, row, userId);
+    }
+    return rows;
+  }
+
+  /**
+   * Recorre los topics soportados y los registra contra Shopify. Por cada
+   * uno: persiste el resultado y emite un evento realtime. Devuelve un
+   * resumen que `connectStore` usa para decidir si avanzar el status.
+   *
+   * Esta función **nunca lanza** un error de Shopify: los errores se
+   * capturan por topic y se reflejan como `WebhookStatus.FAILED` en DB.
+   */
+  private async registerStoreWebhooks(
+    store: Store,
+    callbackUrl: string,
+    seedRows: StoreWebhookRow[],
+    userId?: string,
+  ): Promise<{
+    rows: StoreWebhookRow[];
+    allRequiredConnected: boolean;
+  }> {
+    const credentials = {
+      shopDomain: store.shopifyShopId,
+      accessToken: store.accessToken,
+    };
+    const attemptsByTopic = new Map<WebhookTopic, number>(
+      seedRows.map((r) => [r.topic, r.attempts]),
+    );
+
+    const rows: StoreWebhookRow[] = [];
+    let allRequiredConnected = true;
+
+    // Si la URL de callback no es alcanzable por Shopify, no tiene sentido
+    // pegarle una vez por topic: marcamos todos como fallidos con el motivo
+    // real para que la UI lo muestre.
+    const unreachableReason =
+      this.describeUnreachableCallbackUrl(callbackUrl);
+    if (unreachableReason) {
+      this.logger.error(
+        `No se registrarán webhooks para la tienda ${store.id}: ${unreachableReason}`,
+      );
+      for (const topic of ALL_WEBHOOK_TOPICS) {
+        const row = await this.storeWebhookRepository.upsert({
+          storeId: store.id,
+          topic,
+          callbackUrl,
+          shopifyWebhookId: null,
+          status: WebhookStatus.FAILED,
+          lastError: unreachableReason,
+          attempts: (attemptsByTopic.get(topic) ?? 0) + 1,
+          lastAttemptAt: new Date(),
+        });
+        rows.push(row);
+        await this.publishWebhookUpsert(store, row, userId);
+      }
+      return { rows, allRequiredConnected: false };
+    }
+
+    for (const topic of ALL_WEBHOOK_TOPICS) {
+      const attempts = (attemptsByTopic.get(topic) ?? 0) + 1;
+      try {
+        const shopifyWebhookId = await this.shopifyWebhooks.register(
+          credentials,
+          topic,
+          callbackUrl,
+        );
+        if (shopifyWebhookId) {
+          const row = await this.storeWebhookRepository.upsert({
+            storeId: store.id,
+            topic,
+            callbackUrl,
+            shopifyWebhookId,
+            status: WebhookStatus.CONNECTED,
+            lastError: null,
+            attempts,
+            lastAttemptAt: new Date(),
+          });
+          rows.push(row);
+          await this.publishWebhookUpsert(store, row, userId);
+          continue;
+        }
+        // Shopify devolvió `null`: caso raro (sin id ni errores). Lo
+        // tratamos como fallido para no avanzar el status.
+        const row = await this.storeWebhookRepository.upsert({
+          storeId: store.id,
+          topic,
+          callbackUrl,
+          shopifyWebhookId: null,
+          status: WebhookStatus.REGISTERED_WITHOUT_ID,
+          lastError:
+            'Shopify respondió sin id de webhook y sin userErrors. Reintentá.',
+          attempts,
+          lastAttemptAt: new Date(),
+        });
+        rows.push(row);
+        await this.publishWebhookUpsert(store, row, userId);
+        allRequiredConnected = false;
+      } catch (err) {
+        const lastError =
+          err instanceof Error ? err.message : 'Error desconocido';
+        this.logger.error(
+          `No se pudo registrar el webhook ${topic} para la tienda ${store.id}: ${lastError}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        const row = await this.storeWebhookRepository.upsert({
+          storeId: store.id,
+          topic,
+          callbackUrl,
+          shopifyWebhookId: null,
+          status: WebhookStatus.FAILED,
+          lastError,
+          attempts,
+          lastAttemptAt: new Date(),
+        });
+        rows.push(row);
+        await this.publishWebhookUpsert(store, row, userId);
+        allRequiredConnected = false;
+      }
+    }
+
+    return { rows, allRequiredConnected };
+  }
+
+  /**
+   * Emite el evento realtime `store.webhook.upsert` al tenant (y al user
+   * si lo recibimos) con el shape que consume el frontend. Si la emisión
+   * falla no interrumpimos el flujo: la fila ya quedó persistida y la UI
+   * puede refrescar con `GET /onboarding/store/webhooks`.
+   */
+  private async publishWebhookUpsert(
+    store: Store,
+    row: StoreWebhookRow,
+    userId?: string,
+  ): Promise<void> {
+    const payload = {
+      webhook: {
+        ...row,
+        lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      },
+      store: {
+        id: store.id,
+        shopifyShopId: store.shopifyShopId,
+        tenantId: store.tenantId,
+      },
+    };
+    try {
+      const emissions: Promise<void>[] = [
+        this.realtimePublisher.publishToTenant(
+          store.tenantId,
+          'store.webhook.upsert',
+          payload,
+        ),
+      ];
+      if (userId) {
+        emissions.push(
+          this.realtimePublisher.publishToUser(
+            userId,
+            'store.webhook.upsert',
+            payload,
+          ),
+        );
+      }
+      await Promise.all(emissions);
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo emitir el evento realtime del webhook ${row.topic}: ${
+          err instanceof Error ? err.message : 'unknown'
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Lista los webhooks registrados para la tienda del tenant del usuario
+   * solicitante. Lo consume el frontend al montar el paso 3.
+   */
+  async listStoreWebhooks(userId: string): Promise<{
+    webhooks: StoreWebhookRow[];
+  }> {
+    const user = await this.getUser(userId);
+    if (!user.tenantId) {
+      return { webhooks: [] };
+    }
+    const stores = await this.storeRepository.findByTenantId(user.tenantId);
+    const store = stores[0];
+    if (!store) {
+      return { webhooks: [] };
+    }
+    const rows = await this.storeWebhookRepository.listByStore(store.id);
+    return { webhooks: rows };
+  }
+
+  /**
+   * Reintenta registrar los webhooks que estén en `PENDING` o `FAILED`.
+   * Pensado para que el frontend lo dispare cuando el usuario presiona
+   * "Reintentar" en la lista de webhooks del paso 3.
+   */
+  async retryStoreWebhooks(userId: string): Promise<{
+    webhooks: StoreWebhookRow[];
+    allRequiredConnected: boolean;
+  }> {
+    const user = await this.getUser(userId);
+    if (!user.tenantId) {
+      throw new BadRequestException('Tenant requerido');
+    }
+    const stores = await this.storeRepository.findByTenantId(user.tenantId);
+    const store = stores[0];
+    if (!store) {
+      throw new BadRequestException(
+        'No hay una tienda conectada para reintentar.',
+      );
+    }
+    const callbackUrl = this.buildShopifyWebhookCallbackUrl();
+    const seed = await this.seedStoreWebhooks(store, callbackUrl, userId);
+    const result = await this.registerStoreWebhooks(
+      store,
+      callbackUrl,
+      seed,
+      userId,
+    );
+
+    if (result.allRequiredConnected) {
+      await this.ensureTenantStatusAtLeast(
+        user.tenantId,
+        OnboardingStatus.PENDING_STORE_ROLE,
+      );
+    }
+    return {
+      webhooks: result.rows,
+      allRequiredConnected: result.allRequiredConnected,
+    };
   }
 
   /**
@@ -534,6 +924,28 @@ export class OnboardingService {
       throw new BadRequestException(
         'No hay una tienda conectada. Completá el formulario para vincularla.',
       );
+    }
+
+    // Bloqueamos el avance si algún webhook obligatorio no está conectado.
+    const webhooks = await this.storeWebhookRepository.listByStore(store.id);
+    const failedRequired = webhooks
+      .filter(
+        (w) =>
+          ALL_WEBHOOK_TOPICS.includes(w.topic) &&
+          w.status !== WebhookStatus.CONNECTED,
+      )
+      .map((w) => ({
+        topic: w.topic,
+        status: w.status,
+        lastError: w.lastError,
+      }));
+    if (failedRequired.length > 0) {
+      throw new ConflictException({
+        message:
+          'Hay webhooks obligatorios que no están conectados. Esperá a que finalicen o reintentá.',
+        code: 'WEBHOOKS_NOT_READY',
+        webhooks: failedRequired,
+      });
     }
 
     const onboardingStatus = await this.ensureTenantStatusAtLeast(

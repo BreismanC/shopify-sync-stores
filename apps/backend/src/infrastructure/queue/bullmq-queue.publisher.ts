@@ -27,6 +27,12 @@ export class BullMqQueuePublisher
       attempts: options.attempts ?? 5,
       backoff: { type: 'exponential', delay: options.backoffMs ?? 1000 },
       delay: options.delay,
+      deduplication: options.deduplicationId
+        ? {
+            id: options.deduplicationId,
+            ttl: options.deduplicationTtl ?? 8_000,
+          }
+        : undefined,
       removeOnComplete: { age: 86_400, count: 10_000 },
       removeOnFail: false,
     });

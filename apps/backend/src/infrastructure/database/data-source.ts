@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
 export const AppDataSource = new DataSource({
@@ -7,7 +8,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'admin',
   database: process.env.DB_DATABASE || 'shopify_sync_stores',
-  entities: ['dist/domain/entities/**/*.entity.js'],
-  migrations: ['dist/migrations/*.js'],
+  entities: ['dist/src/domain/entities/**/*.entity.js'],
+  migrations: ['dist/src/migrations/*.js'],
   synchronize: false,
 });

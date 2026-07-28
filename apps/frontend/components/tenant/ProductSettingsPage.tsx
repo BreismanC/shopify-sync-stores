@@ -5,8 +5,8 @@ import { fetchWithAuth, useAuthFetch } from "@/lib/auth/fetch-with-auth";
 
 type Rules = Record<string, any>;
 type Settings = { productRules: Rules; orderRules: Rules; inventoryRules: Rules };
-const productFields = [["title", "Título"], ["description", "Descripción"], ["images", "Imágenes"], ["vendor", "Vendor"], ["productType", "Tipo de producto"], ["tags", "Tags"], ["price", "Precio"], ["variants", "Variantes"], ["inventory", "Inventario"]];
-const defaults: Settings = { productRules: { title: true, description: true, images: true, vendor: true, productType: true, tags: true, price: true, variants: true, options: true, inventory: true, skuStrategy: "SOURCE_SKU", publicationStatus: "DRAFT", commissionPercentage: 0, commissionFixed: 0 }, orderRules: { autoCreateOrders: true, vendorBillingAddress: {} }, inventoryRules: { sourceOfTruth: "SOURCE", preventNegative: true } };
+const productFields = [["title", "Título"], ["description", "Descripción"], ["images", "Imágenes"], ["vendor", "Vendor"], ["productType", "Tipo de producto"], ["tags", "Tags"], ["price", "Precio"], ["variants", "Variantes"]];
+const defaults: Settings = { productRules: { title: true, description: true, images: true, vendor: true, productType: true, tags: true, price: true, variants: true, options: true, skuStrategy: "SOURCE_SKU", publicationStatus: "DRAFT", commissionPercentage: 0, commissionFixed: 0 }, orderRules: { autoCreateOrders: true, vendorBillingAddress: {} }, inventoryRules: { sourceOfTruth: "SOURCE", preventNegative: true } };
 
 export default function ProductSettingsPage({ tenantId }: { tenantId: string }) {
   const { data: session } = useSession();

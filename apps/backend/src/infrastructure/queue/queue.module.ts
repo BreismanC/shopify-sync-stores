@@ -4,6 +4,8 @@ import { Queue } from 'bullmq';
 import { IQueuePublisher } from '../../application/ports/queue-publisher.port';
 import { BullMqQueuePublisher } from './bullmq-queue.publisher';
 import { ALL_QUEUE_NAMES, BULL_QUEUES } from './queue.constants';
+import { IDistributedLock } from '../../application/ports/distributed-lock.port';
+import { RedisDistributedLock } from './redis-distributed-lock';
 
 @Global()
 @Module({
@@ -31,7 +33,9 @@ import { ALL_QUEUE_NAMES, BULL_QUEUES } from './queue.constants';
     },
     BullMqQueuePublisher,
     { provide: IQueuePublisher, useExisting: BullMqQueuePublisher },
+    RedisDistributedLock,
+    { provide: IDistributedLock, useExisting: RedisDistributedLock },
   ],
-  exports: [IQueuePublisher, BULL_QUEUES],
+  exports: [IQueuePublisher, IDistributedLock, BULL_QUEUES],
 })
 export class QueueModule {}

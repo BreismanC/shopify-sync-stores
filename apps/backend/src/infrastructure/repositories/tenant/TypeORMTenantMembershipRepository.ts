@@ -33,6 +33,16 @@ export class TypeORMTenantMembershipRepository implements ITenantMembershipRepos
     });
   }
 
+  findAny(
+    userId: string,
+    tenantId: string,
+  ): Promise<TenantMembership | null> {
+    return this.repository.findOne({
+      where: { userId, tenantId },
+      relations: { tenant: true },
+    });
+  }
+
   findByTenantId(tenantId: string): Promise<TenantMembership[]> {
     return this.repository.find({
       where: { tenantId, status: MembershipStatus.ACTIVE },

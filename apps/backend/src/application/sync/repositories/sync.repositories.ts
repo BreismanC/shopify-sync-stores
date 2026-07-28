@@ -1,5 +1,6 @@
 import { ProductSnapshot } from '../../../domain/entities/product-snapshot.entity';
 import {
+  InitialSyncJob,
   SyncBatch,
   SyncEvent,
   SyncSettings,
@@ -21,6 +22,11 @@ export abstract class IProductRepository {
   ): Promise<{ data: ProductSnapshot[]; total: number }>;
   abstract countByStore(storeId: string): Promise<number>;
   abstract findAllByStore(storeId: string): Promise<ProductSnapshot[]>;
+  abstract listIdsByStore(
+    storeId: string,
+    offset: number,
+    limit: number,
+  ): Promise<Array<{ id: string; shopifyProductId: string }>>;
   abstract findByIdsForStore(
     storeId: string,
     ids: string[],
@@ -46,6 +52,13 @@ export abstract class IProductRepository {
     | import('../../../domain/entities/product-snapshot.entity').ProductVariantSnapshot
     | null
   >;
+  abstract findVariantById(
+    storeId: string,
+    variantId: string,
+  ): Promise<
+    | import('../../../domain/entities/product-snapshot.entity').ProductVariantSnapshot
+    | null
+  >;
   abstract findVariantBySku(
     storeId: string,
     sku: string,
@@ -64,6 +77,11 @@ export abstract class ISyncRepository {
   abstract createSettings(input: Partial<SyncSettings>): SyncSettings;
   abstract createBatch(input: Partial<SyncBatch>): SyncBatch;
   abstract saveBatch(batch: SyncBatch): Promise<SyncBatch>;
+  abstract setBatchTotalAndRunning(
+    batchId: string,
+    total: number,
+  ): Promise<SyncBatch | null>;
+  abstract failBatch(batchId: string, error: string): Promise<SyncBatch | null>;
   abstract recordBatchResult(
     batchId: string,
     result: 'succeeded' | 'failed' | 'skipped',
@@ -86,4 +104,35 @@ export abstract class ISyncRepository {
   ): Promise<SyncedProduct | null>;
   abstract createSyncedProduct(input: Partial<SyncedProduct>): SyncedProduct;
   abstract saveSyncedProduct(product: SyncedProduct): Promise<SyncedProduct>;
+  abstract findActiveSyncedProducts(
+    sourceStoreId: string,
+    sourceProductId: string,
+  ): Promise<SyncedProduct[]>;
+  abstract findSyncedProductIds(
+    connectionId: string,
+    sourceProductIds: string[],
+  ): Promise<string[]>;
+  abstract createInitialSyncJob(input: Partial<InitialSyncJob>): InitialSyncJob;
+  abstract saveInitialSyncJob(job: InitialSyncJob): Promise<InitialSyncJob>;
+  abstract findInitialSyncJob(
+    tenantId: string,
+    id: string,
+  ): Promise<InitialSyncJob | null>;
+  abstract findActiveInitialSyncJob(
+    tenantId: string,
+    storeId: string,
+  ): Promise<InitialSyncJob | null>;
+  abstract setInitialSyncTotalAndRunning(
+    id: string,
+    total: number,
+  ): Promise<InitialSyncJob | null>;
+  abstract failInitialSyncJob(
+    id: string,
+    error: string,
+  ): Promise<InitialSyncJob | null>;
+  abstract recordInitialSyncResult(
+    id: string,
+    result: 'succeeded' | 'failed',
+    error?: string,
+  ): Promise<InitialSyncJob | null>;
 }

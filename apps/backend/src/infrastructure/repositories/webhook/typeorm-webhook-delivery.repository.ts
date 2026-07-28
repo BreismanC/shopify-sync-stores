@@ -10,6 +10,9 @@ export class TypeOrmWebhookDeliveryRepository implements IWebhookDeliveryReposit
     @InjectRepository(WebhookDelivery)
     private readonly repository: Repository<WebhookDelivery>,
   ) {}
+  findById(id: string) {
+    return this.repository.findOne({ where: { id } });
+  }
   find(shopDomain: string, shopifyEventId: string) {
     return this.repository.findOne({ where: { shopDomain, shopifyEventId } });
   }

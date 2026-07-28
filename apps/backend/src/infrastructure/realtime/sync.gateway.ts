@@ -1,9 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationShutdown,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import Redis from 'ioredis';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -18,19 +25,59 @@ interface SocketClaims {
   sessionVersion?: number;
 }
 
+type RealtimeMessage = {
+  scope: 'tenant' | 'user';
+  id: string;
+  event: string;
+  payload: Record<string, unknown>;
+};
+
 @Injectable()
 @WebSocketGateway({
   namespace: '/sync',
+  path: '/sync/socket.io',
   cors: { origin: true, credentials: true },
 })
-export class SyncGateway implements IRealtimePublisher {
+export class SyncGateway
+  implements
+    IRealtimePublisher,
+    OnGatewayConnection,
+    OnModuleInit,
+    OnApplicationShutdown
+{
   private readonly logger = new Logger(SyncGateway.name);
   @WebSocketServer() private server: Server;
+  private readonly realtimeChannel = 'sss:realtime';
+  private readonly publisher: Redis;
+  private readonly subscriber: Redis;
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    const options = {
+      host: config.get<string>('REDIS_HOST', '127.0.0.1'),
+      port: config.get<number>('REDIS_PORT', 6379),
+      password: config.get<string>('REDIS_PASSWORD') || undefined,
+      db: config.get<number>('REDIS_DB', 0),
+      maxRetriesPerRequest: null,
+    };
+    this.publisher = new Redis(options);
+    this.subscriber = new Redis(options);
+  }
+
+  async onModuleInit(): Promise<void> {
+    this.subscriber.on('message', (_channel, rawMessage) => {
+      try {
+        const message = JSON.parse(rawMessage) as RealtimeMessage;
+        const room = `${message.scope}:${message.id}`;
+        this.server?.to(room).emit(message.event, message.payload);
+      } catch (error) {
+        this.logger.warn(`Evento realtime inválido: ${String(error)}`);
+      }
+    });
+    await this.subscriber.subscribe(this.realtimeChannel);
+  }
 
   async handleConnection(client: Socket): Promise<void> {
     try {
@@ -61,8 +108,12 @@ export class SyncGateway implements IRealtimePublisher {
     event: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    this.server?.to(`tenant:${tenantId}`).emit(event, payload);
-    return Promise.resolve();
+    return this.publish({
+      scope: 'tenant',
+      id: tenantId,
+      event,
+      payload,
+    });
   }
 
   publishToUser(
@@ -70,7 +121,29 @@ export class SyncGateway implements IRealtimePublisher {
     event: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    this.server?.to(`user:${userId}`).emit(event, payload);
-    return Promise.resolve();
+    return this.publish({
+      scope: 'user',
+      id: userId,
+      event,
+      payload,
+    });
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    await Promise.allSettled([
+      this.publisher.quit(),
+      this.subscriber.quit(),
+    ]);
+  }
+
+  private async publish(message: RealtimeMessage): Promise<void> {
+    try {
+      await this.publisher.publish(
+        this.realtimeChannel,
+        JSON.stringify(message),
+      );
+    } catch (error) {
+      this.logger.warn(`No fue posible publicar evento realtime: ${String(error)}`);
+    }
   }
 }

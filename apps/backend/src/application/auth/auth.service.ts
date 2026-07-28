@@ -121,7 +121,18 @@ export class AuthService {
       role: UserRole.OWNER,
     });
 
-    return this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
+
+    // 4. Crear la membresía activa en tenant_memberships. Sin esta fila,
+    // TenantMembershipGuard rechazaría cualquier request posterior del
+    // usuario contra el tenant recién creado.
+    await this.tenantService.syncMembership(
+      savedUser.id,
+      tenant.id,
+      UserRole.OWNER,
+    );
+
+    return savedUser;
   }
 
   async validateOrCreateSocialUser(data: {

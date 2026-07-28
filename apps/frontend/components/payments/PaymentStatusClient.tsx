@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { CheckCircle, XCircle, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
+import {
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/env";
 
 const STATUS_TOKEN_STORAGE_KEY = "mp:statusToken";
@@ -84,15 +87,6 @@ function isPaymentFailed(data: PollResponse): boolean {
   return failedMp || failedSub;
 }
 
-function getRedirectTarget(
-  onboardingStatus: OnboardingStatus | null,
-): { href: string } {
-  if (onboardingStatus === OnboardingStatus.COMPLETED) {
-    return { href: "/dashboard" };
-  }
-  return { href: "/onboarding?step=3" };
-}
-
 function readStatusToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -114,7 +108,7 @@ function clearStatusToken(): void {
 export function PaymentStatusClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { update: updateSession } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const preapprovalId = searchParams.get("preapproval_id");
   const redirectedRef = useRef(false);
 
@@ -209,7 +203,7 @@ export function PaymentStatusClient() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [preapprovalId, searchParams, router, updateSession]);
+  }, [preapprovalId, searchParams, router, syncAndNavigate]);
 
   if (!preapprovalId) {
     return (
@@ -260,7 +254,7 @@ export function PaymentStatusClient() {
     state.resolved &&
     (state.mpStatus === "authorized" || state.mpStatus === "active")
   ) {
-    const target = getRedirectTarget(state.onboardingStatus);
+    const target = resolveOnboardingHref(state.onboardingStatus);
 
     const handleContinue = async () => {
       if (redirectedRef.current) return;
@@ -272,16 +266,25 @@ export function PaymentStatusClient() {
           ? OnboardingStatus.PENDING_STORE_CONFIG
           : state.onboardingStatus;
 
-      try {
-        await updateSession({ onboardingStatus: sessionStatus });
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      } catch {
-        // Sesión no se pudo refrescar: el guard mandará al step correcto
-        // en el próximo load.
-      }
-
+      // Limpiamos el token antes de la navegación para no dejarlo colgando
+      // si el usuario recarga la página.
       clearStatusToken();
-      router.push(target.href);
+
+      // Sincronizamos la sesión de NextAuth y navegamos. `syncAndNavigate`
+      // se encarga de llamar a `update()`, refrescar el cache del server y
+      // luego hacer `push(target)`, garantizando que el server component
+      // destino (`/onboarding?step=3` o `/dashboard`) lea la cookie
+      // actualizada en lugar del JWT viejo.
+      //
+      // Usamos `forceReload: true` para forzar una full navigation: el
+      // server component destino (`/onboarding?step=N`) ejecuta `auth()` y
+      // puede leer el JWT ya actualizado. Sin esto, en producción nos quedamos
+      // atrapados en `/onboarding?step=2` aunque la DB diga paso 3.
+      await syncAndNavigate(
+        { onboardingStatus: sessionStatus },
+        target,
+        { forceReload: true },
+      );
     };
 
     return (

@@ -1,6 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TeamMember, TeamInvitation } from '../../domain/entities/team_member.entity';
+import {
+  TeamMember,
+  TeamInvitation,
+} from '../../domain/entities/team_member.entity';
 import { User } from '../../domain/entities/user.entity';
 import { Tenant } from '../../domain/entities/tenant.entity';
 import { ITeamMemberRepository } from '../team-member/repositories/ITeamMemberRepository';
@@ -27,7 +30,10 @@ import { EmailModule } from '../../infrastructure/services/email/email.module';
   controllers: [TeamInvitationController],
   providers: [
     TeamInvitationService,
-    { provide: ITEAM_INVITATION_REPOSITORY, useClass: TypeORMTeamInvitationRepository },
+    {
+      provide: ITEAM_INVITATION_REPOSITORY,
+      useClass: TypeORMTeamInvitationRepository,
+    },
   ],
   exports: [TeamInvitationService],
 })

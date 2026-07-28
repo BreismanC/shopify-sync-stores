@@ -99,6 +99,17 @@ export class OnboardingController {
     return this.onboardingService.getStoreStatus(req.user.id);
   }
 
+  @Get('store/webhooks')
+  async listStoreWebhooks(@Req() req: RequestWithUser) {
+    return this.onboardingService.listStoreWebhooks(req.user.id);
+  }
+
+  @Post('store/webhooks/retry')
+  @HttpCode(HttpStatus.OK)
+  async retryStoreWebhooks(@Req() req: RequestWithUser) {
+    return this.onboardingService.retryStoreWebhooks(req.user.id);
+  }
+
   @Post('store/connect')
   @HttpCode(HttpStatus.OK)
   async connectStore(
@@ -106,6 +117,12 @@ export class OnboardingController {
     @Body() body: ConnectStoreDto,
   ) {
     return this.onboardingService.connectStore(req.user.id, body);
+  }
+
+  @Post('store/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmStore(@Req() req: RequestWithUser) {
+    return this.onboardingService.confirmStore(req.user.id);
   }
 
   // ─── Paso 4: Store role ──────────────────────────────────────────────────

@@ -40,4 +40,7 @@ export const PLAN_PRICING = {
   [SubscriptionPlan.BASIC]: { monthly: 29_000, yearly: 295_800 },
   [SubscriptionPlan.PRO]: { monthly: 79_000, yearly: 805_800 },
   [SubscriptionPlan.ENTERPRISE]: { monthly: 199_000, yearly: 2_029_800 },
-} as const satisfies Record<SubscriptionPlan, { monthly: number; yearly: number }>;
+} as const satisfies Record<
+  SubscriptionPlan,
+  { monthly: number; yearly: number }
+>;

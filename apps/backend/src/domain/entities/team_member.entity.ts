@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   Unique,
   Index,
@@ -14,6 +15,7 @@ import { Tenant } from './tenant.entity';
 /**
  * TeamMember — asociación activa entre un User y un Tenant.
  * El user ya existe y aceptó la invitación.
+ * Soft-delete vía `deletedAt` (revoke / remover del equipo).
  */
 @Entity('team_members')
 @Unique(['userId', 'tenantId'])
@@ -41,6 +43,9 @@ export class TeamMember {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt: Date | null;
 }
 
 export enum InvitationStatus {
@@ -98,7 +103,7 @@ export class TeamInvitation {
   acceptedById: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  acceptedAt: Date;
+  acceptedAt: Date | null;
 
   @ManyToOne(() => User)
   invitedBy: User;

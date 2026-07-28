@@ -18,6 +18,16 @@ export class TypeORMTeamMemberRepository implements ITeamMemberRepository {
     return this.teamMemberRepository.findOne({ where: { userId, tenantId } });
   }
 
+  async findByUserIdAndTenantIdWithDeleted(
+    userId: string,
+    tenantId: string,
+  ): Promise<TeamMember | null> {
+    return this.teamMemberRepository.findOne({
+      where: { userId, tenantId },
+      withDeleted: true,
+    });
+  }
+
   async save(teamMember: TeamMember): Promise<TeamMember> {
     return this.teamMemberRepository.save(teamMember);
   }
@@ -28,5 +38,13 @@ export class TypeORMTeamMemberRepository implements ITeamMemberRepository {
 
   async findByTenantId(tenantId: string): Promise<TeamMember[]> {
     return this.teamMemberRepository.find({ where: { tenantId } });
+  }
+
+  async softDelete(teamMember: TeamMember): Promise<void> {
+    await this.teamMemberRepository.softRemove(teamMember);
+  }
+
+  async recover(teamMember: TeamMember): Promise<TeamMember> {
+    return this.teamMemberRepository.recover(teamMember);
   }
 }

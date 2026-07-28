@@ -2,16 +2,25 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { User } from '../../../domain/entities/user.entity';
+import { UserRole } from '../../../domain/enums/user-role.enum';
+import { OnboardingStatus } from '../../../domain/enums/onboarding-status.enum';
 import {
   IUserRepository,
   IUSER_REPOSITORY,
 } from '../repositories/IUserRepository';
+import { TenantService } from '../../tenant/tenant.service';
+
+export type AuthenticatedUser = User & {
+  onboardingStatus: OnboardingStatus;
+  isOwner: boolean;
+};
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     @Inject(IUSER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    private readonly tenantService: TenantService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -30,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     email?: string | null;
     sub?: string;
     tenantId?: string;
-  }): Promise<User | null> {
+  }): Promise<AuthenticatedUser | null> {
     console.log('[JwtStrategy] validate payload:', JSON.stringify(payload));
     const email = payload.email;
     const sub = payload.sub;
@@ -38,13 +47,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     let user: User | null = null;
 
-    // Try by email first
     if (email) {
       console.log('[JwtStrategy] looking up by email:', email);
       user = await this.userRepository.findByEmail(email);
     }
 
-    // Try by user ID (sub)
     if (!user && sub) {
       console.log('[JwtStrategy] looking up by id:', sub);
       user = await this.userRepository.findById(sub);
@@ -54,6 +61,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       console.log('[JwtStrategy] User not found in DB');
       return null;
     }
+
+    let onboardingStatus = OnboardingStatus.PENDING_TENANT_CONFIG;
+    if (user.tenantId) {
+      const tenant = await this.tenantService.findById(user.tenantId);
+      onboardingStatus =
+        tenant?.onboardingStatus ?? OnboardingStatus.PENDING_TENANT_CONFIG;
+    }
+
     console.log(
       '[JwtStrategy] User found:',
       user.email,
@@ -61,7 +76,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       user.id,
       'tenantId:',
       user.tenantId,
+      'onboardingStatus:',
+      onboardingStatus,
     );
-    return user;
+
+    return Object.assign(user, {
+      onboardingStatus,
+      isOwner: user.role === UserRole.OWNER,
+    });
   }
 }

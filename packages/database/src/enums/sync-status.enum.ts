@@ -1,0 +1,27 @@
+export enum SyncBatchStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  PARTIAL = "PARTIAL",
+  FAILED = "FAILED",
+  CANCELED = "CANCELED",
+}
+
+export enum SyncBatchOperation {
+  CATALOG_REFRESH = "CATALOG_REFRESH",
+  PRODUCT_REPLICATION = "PRODUCT_REPLICATION",
+}
+
+export enum SyncEventStatus {
+  PENDING = "PENDING",
+  PROCESSING = "PROCESSING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  SKIPPED = "SKIPPED",
+}
+
+export enum PayoutStatus {
+  PENDING = "PENDING",
+  PAID = "PAID",
+  CANCELED = "CANCELED",
+}

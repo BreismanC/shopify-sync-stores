@@ -296,4 +296,11 @@
   main {
     background-color: var(--gray-1);
   }
+
+  input[type="checkbox"] {
+    border: 1px solid red;
+  }
+  input[type="checkbox"]:focus {
+    outline: none;
+  }
 }

@@ -20,79 +20,78 @@ interface OnboardingStepperProps {
 }
 
 export function OnboardingStepper({ currentStep, className }: OnboardingStepperProps) {
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, ((currentStep - 1) / TOTAL_ONBOARDING_STEPS) * 100),
+  );
+
   return (
-    <ol
-      className={cn(
-        "flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2",
-        className,
-      )}
-    >
-      {ONBOARDING_STEPS.map((step, idx) => {
-        const isCompleted = currentStep > step.number;
-        const isCurrent = currentStep === step.number;
-        const isReachable = step.number <= currentStep;
-        const inner = (
-          <>
-            <div
-              className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold",
-                isCompleted && "border-primary bg-primary text-white",
-                isCurrent && "border-primary text-primary",
-                !isCompleted && !isCurrent && "border-outline-variant text-on-surface-variant",
-                isReachable && !isCurrent && "group-hover:border-primary group-hover:text-primary",
-              )}
-            >
-              {isCompleted ? <Check className="h-4 w-4" /> : step.number}
-            </div>
-            <div className="flex flex-1 flex-col">
+    <div className={cn("flex flex-col gap-4", className)}>
+      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-0">
+        {ONBOARDING_STEPS.map((step, idx) => {
+          const isCompleted = currentStep > step.number;
+          const isCurrent = currentStep === step.number;
+          const isReachable = step.number <= currentStep;
+          const inner = (
+            <>
+              <div
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors",
+                  isCompleted && "border-accent-9 bg-accent-9/10 text-accent-9",
+                  isCurrent && "border-accent-9 bg-accent-9/10 text-accent-9",
+                  !isCompleted && !isCurrent && "border-gray-6 bg-gray-1 text-gray-11",
+                  isReachable && !isCurrent && "hover:border-accent-9 hover:text-accent-9",
+                )}
+              >
+                {isCompleted ? <Check className="h-5 w-5" /> : step.number}
+              </div>
               <span
                 className={cn(
-                  "text-sm font-medium",
-                  isCurrent ? "text-on-background" : "text-on-surface-variant",
+                  "mt-2 text-center text-xs font-bold transition-colors",
+                  isCurrent ? "text-accent-9" : isCompleted ? "text-accent-9" : "text-gray-11",
                 )}
               >
                 {step.title}
               </span>
-              <span className="hidden text-xs text-on-surface-variant sm:block">
-                {step.description}
-              </span>
+            </>
+          );
+          return (
+            <div key={step.number} className="flex flex-1 items-center sm:flex-col">
+              {isReachable ? (
+                <Link
+                  href={`/onboarding?step=${step.number}`}
+                  aria-current={isCurrent ? "step" : undefined}
+                  className="group flex flex-1 flex-col items-center sm:p-1"
+                >
+                  {inner}
+                </Link>
+              ) : (
+                <div aria-disabled className="flex flex-1 flex-col items-center sm:p-1">
+                  {inner}
+                </div>
+              )}
+              {idx < ONBOARDING_STEPS.length - 1 ? (
+                <div
+                  className={cn(
+                    "hidden h-[2px] flex-1 sm:block",
+                    isCompleted ? "bg-accent-9" : "bg-gray-6",
+                  )}
+                  aria-hidden
+                />
+              ) : null}
             </div>
-          </>
-        );
-        return (
-          <li
-            key={step.number}
-            className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-2"
-          >
-            {isReachable ? (
-              <Link
-                href={`/onboarding?step=${step.number}`}
-                aria-current={isCurrent ? "step" : undefined}
-                className="group flex flex-1 items-center gap-3 rounded-md transition-colors hover:bg-surface-container-low sm:flex-col sm:items-stretch sm:gap-2 sm:p-1"
-              >
-                {inner}
-              </Link>
-            ) : (
-              <div
-                aria-disabled
-                className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-2 sm:p-1"
-              >
-                {inner}
-              </div>
-            )}
-            {idx < ONBOARDING_STEPS.length - 1 ? (
-              <div
-                className={cn(
-                  "hidden h-px flex-1 sm:block",
-                  isCompleted ? "bg-primary" : "bg-outline-variant",
-                )}
-                aria-hidden
-              />
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
+          );
+        })}
+      </div>
+
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-3">
+        <div
+          className="h-full bg-accent-9 transition-all duration-500"
+          style={{ width: `${progressPercent}%` }}
+          aria-hidden
+        />
+      </div>
+    </div>
   );
 }
 

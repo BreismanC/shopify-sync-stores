@@ -10,6 +10,8 @@ import { SubscriptionModule } from '../subscription/subscription.module';
 import { MercadoPagoModule } from '../../infrastructure/mercadopago/mercadopago.module';
 import { EmailModule } from '../../infrastructure/services/email/email.module';
 import { TeamInvitationModule } from '../team-invitation/team-invitation.module';
+import { ShopifyModule } from '../shopify/shopify.module';
+import { SyncModule } from '../sync/sync.module';
 
 /**
  * Onboarding Module
@@ -35,6 +37,8 @@ import { TeamInvitationModule } from '../team-invitation/team-invitation.module'
     forwardRef(() => MercadoPagoModule),
     forwardRef(() => EmailModule),
     forwardRef(() => TeamInvitationModule),
+    ShopifyModule,
+    forwardRef(() => SyncModule),
   ],
   controllers: [OnboardingController, OnboardingPublicController],
   providers: [OnboardingService],

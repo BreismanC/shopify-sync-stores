@@ -17,13 +17,14 @@ const buildSvc = (
     secret,
     signOptions: { expiresIn: `${ttlSeconds}s` },
   });
-  const config = ({
+  const config = {
     get: (key: string) => {
       if (key === 'MERCADOPAGO_STATUS_TOKEN_SECRET') return secret;
-      if (key === 'MERCADOPAGO_STATUS_TOKEN_TTL_SECONDS') return String(ttlSeconds);
+      if (key === 'MERCADOPAGO_STATUS_TOKEN_TTL_SECONDS')
+        return String(ttlSeconds);
       return undefined;
     },
-  } as unknown) as ConfigService;
+  } as unknown as ConfigService;
   return new MercadoPagoTokenService(jwt, config);
 };
 

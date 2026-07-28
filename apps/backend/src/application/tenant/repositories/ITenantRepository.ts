@@ -1,8 +1,10 @@
 import { Tenant } from '../../../domain/entities/tenant.entity';
 
-export abstract class ITenantRepository {
-  abstract findById(id: string): Promise<Tenant | null>;
-  abstract save(tenant: Tenant): Promise<Tenant>;
-  abstract create(tenant: Partial<Tenant>): Tenant;
-  abstract findByName(name: string): Promise<Tenant | null>;
+export const ITenantRepository = 'ITenantRepository';
+
+export interface ITenantRepository {
+  findById(id: string): Promise<Tenant | null>;
+  save(tenant: Tenant): Promise<Tenant>;
+  create(tenant: Partial<Tenant>): Tenant;
+  findByName(name: string): Promise<Tenant | null>;
 }

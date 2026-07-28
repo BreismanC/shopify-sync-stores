@@ -13,6 +13,10 @@ import { TeamInvitationModule } from './application/team-invitation/team-invitat
 import { OnboardingModule } from './application/onboarding/onboarding.module';
 import { MercadoPagoModule } from './infrastructure/mercadopago/mercadopago.module';
 import { EmailModule } from './infrastructure/services/email/email.module';
+import { RealtimeModule } from './infrastructure/realtime/realtime.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
+import { SyncModule } from './application/sync/sync.module';
+import { WebhookModule } from './application/webhook/webhook.module';
 
 @Module({
   imports: [
@@ -27,6 +31,7 @@ import { EmailModule } from './infrastructure/services/email/email.module';
       },
     ]),
     DatabaseModule,
+    QueueModule,
     AuthModule,
     TenantModule,
     SubscriptionModule,
@@ -36,6 +41,9 @@ import { EmailModule } from './infrastructure/services/email/email.module';
     OnboardingModule,
     MercadoPagoModule,
     EmailModule,
+    RealtimeModule,
+    SyncModule,
+    WebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],

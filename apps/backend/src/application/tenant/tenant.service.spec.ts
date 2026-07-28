@@ -108,11 +108,16 @@ describe('TenantService', () => {
       userRepository.findById.mockResolvedValue(mockUser as any);
       tenantRepository.create.mockReturnValue(mockTenant as any);
       tenantRepository.save.mockResolvedValue(mockTenant as any);
-      userRepository.save.mockResolvedValue({ ...mockUser, tenantId: 'tenant-uuid' } as any);
+      userRepository.save.mockResolvedValue({
+        ...mockUser,
+        tenantId: 'tenant-uuid',
+      } as any);
 
       const result = await tenantService.upsertTenant(userId, tenantName);
 
-      expect(tenantRepository.create).toHaveBeenCalledWith({ name: tenantName });
+      expect(tenantRepository.create).toHaveBeenCalledWith({
+        name: tenantName,
+      });
       expect(tenantRepository.save).toHaveBeenCalledWith(mockTenant);
       expect(userRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ tenantId: 'tenant-uuid' }),
@@ -133,7 +138,10 @@ describe('TenantService', () => {
 
       userRepository.findById.mockResolvedValue(mockUser as any);
       tenantRepository.findById.mockResolvedValue(existingTenant as any);
-      tenantRepository.save.mockResolvedValue({ ...existingTenant, name: newName } as any);
+      tenantRepository.save.mockResolvedValue({
+        ...existingTenant,
+        name: newName,
+      } as any);
 
       const result = await tenantService.upsertTenant(userId, newName);
 

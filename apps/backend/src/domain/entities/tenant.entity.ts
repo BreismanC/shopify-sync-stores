@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TenantStatus } from '../enums/tenant-status.enum';
+import { OnboardingStatus } from '../enums/onboarding-status.enum';
 
 @Entity('tenants')
 export class Tenant {
@@ -21,6 +22,13 @@ export class Tenant {
     default: TenantStatus.ACTIVE,
   })
   status: TenantStatus;
+
+  @Column({
+    type: 'enum',
+    enum: OnboardingStatus,
+    default: OnboardingStatus.PENDING_TENANT_CONFIG,
+  })
+  onboardingStatus: OnboardingStatus;
 
   @CreateDateColumn()
   createdAt: Date;

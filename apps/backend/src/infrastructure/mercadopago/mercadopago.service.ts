@@ -121,8 +121,7 @@ export class MercadoPagoService {
     payerEmail?: string;
   }): Promise<{ preferenceId: string; initPoint: string }> {
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ??
-      'http://localhost:3000';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
     const notificationUrl =
       this.configService.get<string>('MERCADOPAGO_NOTIFICATION_URL') ??
       this.buildNotificationUrl();
@@ -239,8 +238,7 @@ export class MercadoPagoService {
     price: number;
     billingPeriod: BillingPeriod;
   }): Promise<{ planId: string }> {
-    const frequency =
-      params.billingPeriod === BillingPeriod.MONTHLY ? 1 : 12;
+    const frequency = params.billingPeriod === BillingPeriod.MONTHLY ? 1 : 12;
     const frequency_type =
       params.billingPeriod === BillingPeriod.MONTHLY ? 'months' : 'years';
 
@@ -294,14 +292,12 @@ export class MercadoPagoService {
         params.billingPeriod === BillingPeriod.MONTHLY ? 'monthly' : 'yearly'
       ] ?? 0;
 
-    const frequency =
-      params.billingPeriod === BillingPeriod.MONTHLY ? 1 : 12;
+    const frequency = params.billingPeriod === BillingPeriod.MONTHLY ? 1 : 12;
     const frequency_type =
       params.billingPeriod === BillingPeriod.MONTHLY ? 'months' : 'years';
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ??
-      'http://localhost:3000';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
     const billingLabel =
       params.billingPeriod === BillingPeriod.MONTHLY ? 'mensual' : 'anual';
@@ -390,7 +386,13 @@ export class MercadoPagoService {
    * Endpoint SDK: `PreApproval.get({ id })`
    */
   async getPreapprovalStatus(externalSubscriptionId: string): Promise<{
-    status: 'pending' | 'active' | 'cancelled' | 'paused' | 'expired' | 'authorized';
+    status:
+      | 'pending'
+      | 'active'
+      | 'cancelled'
+      | 'paused'
+      | 'expired'
+      | 'authorized';
     dateCreated: Date;
     nextBillingDate: Date;
     lastBillingDate: Date;
@@ -414,7 +416,13 @@ export class MercadoPagoService {
    */
   async getPreapprovalById(preapprovalId: string): Promise<{
     id: string;
-    status: 'pending' | 'active' | 'cancelled' | 'paused' | 'expired' | 'authorized';
+    status:
+      | 'pending'
+      | 'active'
+      | 'cancelled'
+      | 'paused'
+      | 'expired'
+      | 'authorized';
     dateCreated: Date;
     nextBillingDate: Date;
     lastBillingDate: Date;

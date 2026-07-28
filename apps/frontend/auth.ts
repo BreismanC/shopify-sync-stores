@@ -31,6 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name,
             tenantId: user.tenantId,
             role: user.role,
+            isOwner: user.isOwner ?? user.role === 'OWNER',
             accessToken: credentials.token as string,
             refreshToken: credentials.refreshToken as string,
             onboardingStatus: isValidStatus(user.onboardingStatus)
@@ -51,6 +52,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.refreshToken = token.refreshToken || (user as any).refreshToken;
         token.user = user;
         token.onboardingStatus = (user as any).onboardingStatus;
+        token.isOwner =
+          (user as any).isOwner ?? (user as any).role === 'OWNER';
       }
 
       // Check if token is expired or about to expire
@@ -77,6 +80,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   token.user = refreshData.user;
                   if (refreshData.user?.onboardingStatus && isValidStatus(refreshData.user.onboardingStatus)) {
                     token.onboardingStatus = refreshData.user.onboardingStatus;
+                  }
+                  if (typeof refreshData.user?.isOwner === 'boolean') {
+                    token.isOwner = refreshData.user.isOwner;
+                  } else if (refreshData.user?.role) {
+                    token.isOwner = refreshData.user.role === 'OWNER';
                   }
                 } else {
                   // Refresh failed, return error
@@ -145,13 +153,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       if (token.user) {
+        const role = token.user.role;
+        const isOwner =
+          typeof token.isOwner === 'boolean'
+            ? token.isOwner
+            : typeof token.user.isOwner === 'boolean'
+              ? token.user.isOwner
+              : role === 'OWNER';
         session.user = {
           ...session.user,
           id: token.user.id,
           email: token.user.email,
           name: token.user.name,
           tenantId: token.user.tenantId,
-          role: token.user.role,
+          role,
+          isOwner,
           onboardingStatus: isValidStatus(token.onboardingStatus)
             ? token.onboardingStatus
             : (token.user.onboardingStatus as OnboardingStatus) ||
@@ -161,6 +177,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Sin user en el token, pero al menos propagamos el status
         session.user = {
           ...session.user,
+          isOwner: token.isOwner ?? false,
           onboardingStatus: isValidStatus(token.onboardingStatus)
             ? token.onboardingStatus
             : OnboardingStatus.PENDING_TENANT_CONFIG,

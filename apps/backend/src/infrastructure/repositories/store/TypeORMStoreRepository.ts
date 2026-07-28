@@ -1,8 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Store } from '../../../domain/entities/store.entity';
+import {
+  Store,
+  normalizeStoreKey,
+} from '../../../domain/entities/store.entity';
 import { IStoreRepository } from '../../../application/store/repositories/IStoreRepository';
+
+export const SAFE_STORE_FIELDS = [
+  'id',
+  'shopifyShopId',
+  'role',
+  'isActive',
+  'storeKey',
+  'tenantId',
+  'createdAt',
+  'updatedAt',
+] as const;
 
 @Injectable()
 export class TypeORMStoreRepository implements IStoreRepository {
@@ -13,6 +27,10 @@ export class TypeORMStoreRepository implements IStoreRepository {
 
   async findByShopId(shopifyShopId: string): Promise<Store | null> {
     return this.storeRepository.findOne({ where: { shopifyShopId } });
+  }
+
+  async findById(storeId: string): Promise<Store | null> {
+    return this.storeRepository.findOne({ where: { id: storeId } });
   }
 
   async findByTenantId(tenantId: string): Promise<Store[]> {
@@ -29,6 +47,15 @@ export class TypeORMStoreRepository implements IStoreRepository {
       order: 'asc' | 'desc';
     },
   ): Promise<{ data: Store[]; total: number }> {
+    // Defensa en profundidad: aunque el DTO valide sortBy con @IsIn,
+    // nunca concatenamos un identificador controlado por el cliente
+    // directamente en una query SQL. Si llega algo fuera de la lista
+    // blanca, caemos al default seguro.
+    const allowedSort = new Set(['shopifyShopId', 'role', 'createdAt'] as const);
+    const safeSortBy = allowedSort.has(options.sortBy as any)
+      ? options.sortBy
+      : ('createdAt' as const);
+
     const qb = this.storeRepository
       .createQueryBuilder('store')
       .where('store.tenantId = :tenantId', { tenantId })
@@ -37,6 +64,7 @@ export class TypeORMStoreRepository implements IStoreRepository {
         'store.shopifyShopId',
         'store.role',
         'store.isActive',
+        'store.storeKey',
         'store.tenantId',
         'store.createdAt',
         'store.updatedAt',
@@ -48,12 +76,23 @@ export class TypeORMStoreRepository implements IStoreRepository {
       });
     }
 
-    qb.orderBy(`store.${options.sortBy}`, options.order.toUpperCase() as 'ASC' | 'DESC')
+    qb.orderBy(
+      `store.${safeSortBy}`,
+      options.order.toUpperCase() as 'ASC' | 'DESC',
+    )
       .skip((options.page - 1) * options.perPage)
       .take(options.perPage);
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total };
+  }
+
+  async findByStoreKey(storeKey: string): Promise<Store | null> {
+    const normalized = normalizeStoreKey(storeKey);
+    if (!normalized) return null;
+    return this.storeRepository.findOne({
+      where: { storeKey: normalized },
+    });
   }
 
   async save(store: Store): Promise<Store> {

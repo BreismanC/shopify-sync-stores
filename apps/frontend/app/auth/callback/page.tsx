@@ -79,15 +79,15 @@ function AuthCallbackContent() {
           return;
         }
 
-        // Redirección por onboardingStatus (no por tenantId).
+        // onboardingStatus es del TENANT.
         const onboardingStatus: OnboardingStatus = isValidStatus(
           user.onboardingStatus,
         )
           ? (user.onboardingStatus as OnboardingStatus)
           : OnboardingStatus.PENDING_TENANT_CONFIG;
+        const isOwner = user.isOwner === true || user.role === 'OWNER';
 
         if (onboardingStatus === OnboardingStatus.COMPLETED) {
-          // Onboarding completo: revisar tenants
           try {
             const tenantsRes = await fetch('/api/auth/tenant', {
               method: 'GET',
@@ -108,8 +108,14 @@ function AuthCallbackContent() {
           } catch {
             window.location.href = '/dashboard';
           }
+        } else if (!isOwner) {
+          if (onboardingStatus === OnboardingStatus.PENDING_TEAM_CONFIG) {
+            window.location.href = '/dashboard';
+          } else {
+            window.location.href =
+              '/unauthorized?reason=team-member-not-invited';
+          }
         } else {
-          // Onboarding pendiente: ir al step derivado del status
           const step = statusToStep(onboardingStatus);
           window.location.href = `/onboarding?step=${step}`;
         }

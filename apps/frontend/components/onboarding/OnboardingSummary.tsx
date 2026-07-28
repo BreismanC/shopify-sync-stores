@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Check, ExternalLink } from "lucide-react";
@@ -10,7 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { ONBOARDING_STEPS } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/env";
 
 interface SummaryData {
@@ -25,10 +27,10 @@ interface SummaryData {
 }
 
 export function OnboardingSummary() {
-  const router = useRouter();
   const { goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
   const accessToken = session?.accessToken as string | undefined;
+  const syncAndNavigate = useSyncSessionAndNavigate();
 
   const [data, setData] = useState<SummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,9 +92,22 @@ export function OnboardingSummary() {
         { method: "POST" },
         accessToken,
       );
-      await updateSession({ onboardingStatus: result.onboardingStatus });
       toast.success("¡Onboarding completado!");
-      router.push("/dashboard");
+      // `syncAndNavigate` se encarga de llamar a `update()` (escribe la
+      // cookie de NextAuth), refrescar el cache del server component actual
+      // y navegar a `/dashboard`. Sin el refresh, el server lee el JWT
+      // viejo (onboardingStatus anterior), redirige al usuario a
+      // `/onboarding?step=5` y nunca se monta el sidebar.
+      //
+      // Usamos `forceReload: true` para forzar una full navigation:
+      // garantiza que el server component `app/(protected)/layout.tsx`
+      // ejecute `auth()` con el JWT recién escrito y monte el sidebar en el
+      // primer render del dashboard, sin necesidad de un F5 manual.
+      await syncAndNavigate(
+        { onboardingStatus: result.onboardingStatus },
+        "/dashboard",
+        { forceReload: true },
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al confirmar");
       setIsConfirming(false);
@@ -102,18 +117,18 @@ export function OnboardingSummary() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-accent-9" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-on-background">
+      <Card className="rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-12 tracking-tight">
           Resumen de configuración
         </h2>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <p className="mt-1 text-sm text-gray-11">
           Revisá los datos antes de confirmar. Podés volver a cualquier paso
           para editar.
         </p>
@@ -122,16 +137,16 @@ export function OnboardingSummary() {
           {ONBOARDING_STEPS.map((step) => (
             <div
               key={step.number}
-              className="flex items-start justify-between gap-4 rounded-lg border border-outline-variant p-4"
+              className="flex items-start justify-between gap-4 rounded-lg border border-gray-6 bg-gray-1 p-4"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-on-background">
+                  <Check className="h-4 w-4 text-accent-9" />
+                  <span className="text-sm font-medium text-gray-12">
                     Paso {step.number}: {step.title}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-on-surface-variant">
+                <p className="mt-1 text-sm text-gray-11">
                   {renderStepSummary(step.slug, data)}
                 </p>
               </div>
@@ -139,7 +154,7 @@ export function OnboardingSummary() {
                 type="button"
                 variant="link"
                 onClick={() => goToStep(step.number)}
-                className="h-8 px-2 text-primary"
+                className="h-8 px-2 text-accent-9 hover:bg-accent-9/10 hover:text-accent-10"
               >
                 Editar
                 <ExternalLink className="ml-1 h-3 w-3" />
@@ -153,7 +168,7 @@ export function OnboardingSummary() {
             type="button"
             variant="link"
             onClick={() => goToStep(5)}
-            className="h-12 px-6 text-on-surface-variant"
+            className="h-12 px-6 text-gray-11 hover:bg-gray-3 hover:text-gray-12"
           >
             Volver
           </Button>
@@ -161,7 +176,7 @@ export function OnboardingSummary() {
             type="button"
             onClick={handleConfirm}
             isLoading={isConfirming}
-            className="h-12 bg-primary px-6 font-semibold text-white"
+            className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none"
           >
             Confirmar configuración
           </Button>

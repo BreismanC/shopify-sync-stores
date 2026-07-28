@@ -1,0 +1,8 @@
+export enum ConnectionStatus {
+  PENDING = "PENDING",
+  ACTIVE = "ACTIVE",
+  REJECTED = "REJECTED",
+  REVOKED = "REVOKED",
+  CANCELED = "CANCELED",
+  EXPIRED = "EXPIRED",
+}

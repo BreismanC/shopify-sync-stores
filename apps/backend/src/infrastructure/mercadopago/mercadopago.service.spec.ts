@@ -63,7 +63,10 @@ describe('MercadoPagoService (SDK v3)', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         MercadoPagoService,
-        { provide: ConfigService, useValue: buildConfigService(configOverrides) },
+        {
+          provide: ConfigService,
+          useValue: buildConfigService(configOverrides),
+        },
         {
           provide: MERCADOPAGO_PREFERENCE_CLIENT,
           useValue: preferenceMock,
@@ -85,14 +88,16 @@ describe('MercadoPagoService (SDK v3)', () => {
 
     // Exponer los mocks vía la referencia del módulo para que cada test
     // pueda asignarlos a variables locales y configurarlos.
-    (moduleRef as unknown as {
-      __mocks: {
-        preference: PreferenceClientMock;
-        preApproval: PreApprovalClientMock;
-        preApprovalPlan: PreApprovalPlanClientMock;
-        payment: PaymentClientMock;
-      };
-    }).__mocks = {
+    (
+      moduleRef as unknown as {
+        __mocks: {
+          preference: PreferenceClientMock;
+          preApproval: PreApprovalClientMock;
+          preApprovalPlan: PreApprovalPlanClientMock;
+          payment: PaymentClientMock;
+        };
+      }
+    ).__mocks = {
       preference: preferenceMock,
       preApproval: preApprovalMock,
       preApprovalPlan: preApprovalPlanMock,
@@ -129,8 +134,7 @@ describe('MercadoPagoService (SDK v3)', () => {
     it('debe invocar Preference.create con el body correcto y devolver preferenceId + initPoint', async () => {
       const sdkResponse = {
         id: 'pref-123456',
-        init_point:
-          'https://www.mercadopago.com/checkout/start?pref=123456',
+        init_point: 'https://www.mercadopago.com/checkout/start?pref=123456',
       };
       preference.create.mockResolvedValueOnce(sdkResponse);
 
@@ -168,11 +172,12 @@ describe('MercadoPagoService (SDK v3)', () => {
 
     it('debe omitir auto_return cuando MERCADOPAGO_SANDBOX=true', async () => {
       const moduleRef = await buildTestModule({ MERCADOPAGO_SANDBOX: 'true' });
-      const sandboxService = moduleRef.get<MercadoPagoService>(
-        MercadoPagoService,
-      );
+      const sandboxService =
+        moduleRef.get<MercadoPagoService>(MercadoPagoService);
       const sandboxPreference = (
-        moduleRef as unknown as { __mocks: { preference: PreferenceClientMock } }
+        moduleRef as unknown as {
+          __mocks: { preference: PreferenceClientMock };
+        }
       ).__mocks.preference;
       sandboxPreference.create.mockResolvedValueOnce({
         id: 'pref-123',
@@ -194,11 +199,12 @@ describe('MercadoPagoService (SDK v3)', () => {
 
     it('debe preferir sandbox_init_point cuando MERCADOPAGO_SANDBOX=true', async () => {
       const moduleRef = await buildTestModule({ MERCADOPAGO_SANDBOX: 'true' });
-      const sandboxService = moduleRef.get<MercadoPagoService>(
-        MercadoPagoService,
-      );
+      const sandboxService =
+        moduleRef.get<MercadoPagoService>(MercadoPagoService);
       const sandboxPreference = (
-        moduleRef as unknown as { __mocks: { preference: PreferenceClientMock } }
+        moduleRef as unknown as {
+          __mocks: { preference: PreferenceClientMock };
+        }
       ).__mocks.preference;
       sandboxPreference.create.mockResolvedValueOnce({
         id: 'pref-xyz',
@@ -226,7 +232,7 @@ describe('MercadoPagoService (SDK v3)', () => {
 
       // Capturamos el log para verificar que no crashea
       const logSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         .spyOn((service as any).logger, 'error')
         .mockImplementation(() => undefined);
 
@@ -343,11 +349,12 @@ describe('MercadoPagoService (SDK v3)', () => {
 
     it('debe preferir sandbox_init_point cuando MERCADOPAGO_SANDBOX=true', async () => {
       const moduleRef = await buildTestModule({ MERCADOPAGO_SANDBOX: 'true' });
-      const sandboxService = moduleRef.get<MercadoPagoService>(
-        MercadoPagoService,
-      );
+      const sandboxService =
+        moduleRef.get<MercadoPagoService>(MercadoPagoService);
       const sandboxPreApproval = (
-        moduleRef as unknown as { __mocks: { preApproval: PreApprovalClientMock } }
+        moduleRef as unknown as {
+          __mocks: { preApproval: PreApprovalClientMock };
+        }
       ).__mocks.preApproval;
       sandboxPreApproval.create.mockResolvedValueOnce({
         id: 'preapproval-abc',
@@ -373,7 +380,7 @@ describe('MercadoPagoService (SDK v3)', () => {
       preApproval.create.mockRejectedValueOnce(sdkError);
 
       const logSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         .spyOn((service as any).logger, 'error')
         .mockImplementation(() => undefined);
 
@@ -581,11 +588,11 @@ describe('MercadoPagoService (SDK v3)', () => {
       const moduleRef = await buildTestModule({
         MERCADOPAGO_CURRENCY: 'USD',
       });
-      const usdService = moduleRef.get<MercadoPagoService>(
-        MercadoPagoService,
-      );
+      const usdService = moduleRef.get<MercadoPagoService>(MercadoPagoService);
       const usdPreference = (
-        moduleRef as unknown as { __mocks: { preference: PreferenceClientMock } }
+        moduleRef as unknown as {
+          __mocks: { preference: PreferenceClientMock };
+        }
       ).__mocks.preference;
       usdPreference.create.mockResolvedValueOnce({
         id: 'pref-usd',

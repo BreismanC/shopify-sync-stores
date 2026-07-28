@@ -17,5 +17,6 @@ export interface ProfileWithRole {
   name: string;
   tenantId: string;
   role: UserRole;
+  isOwner?: boolean;
   onboardingStatus?: string;
 }

@@ -1,29 +1,76 @@
 # Dependencies
-node_modules
-.pnp
-.pnp.js
-# Local env files
+node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches/
+!.yarn/plugins/
+!.yarn/releases/
+!.yarn/versions/
+
+# Local environment files
 .env
-.env.*.local
-.env.development
-.env.production
-.env.test
+.env.*
 !.env.example
-# Testing
-coverage
-# Turbo
-.turbo
-# Vercel
-.vercel
-# Build Outputs
+!.env.*.example
+
+# Archivos auxiliares creados por redirecciones de shell (Windows) o notas
+# exportadas del entorno local. NO son secretos productivos pero tampoco
+# deben quedar en el repo.
+nul
+**/env.txt
+
+# Build and generated outputs
 .next/
 out/
-build
-dist
-# Debug
+dist/
+dist-*/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+.vercel/
+
+# Deployment and tooling artifacts
+.aws-sam/
+.serverless/
+.nyc_output/
+.nx/
+.parcel-cache/
+.cache/
+.tmp/
+.temp/
+
+# Logs and runtime files
+*.log
+logs/
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# Misc
+lerna-debug.log*
+*.pid
+*.pid.lock
+*.seed
+pids/
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# IDEs and operating systems
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Certificates and private keys
 *.pem
+*.key
+*.p12
+*.pfx

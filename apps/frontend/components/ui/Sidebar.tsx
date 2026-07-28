@@ -29,7 +29,7 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "5rem";
+const SIDEBAR_WIDTH_ICON = "5.5rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContextProps = {
@@ -343,11 +343,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-header"
       data-sidebar="header"
-      className={cn(
-        "flex flex-col gap-2 p-0.5",
-        "group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:p-0",
-        className
-      )}
+      className={cn("flex flex-col gap-1 p-1", className)}
       {...props}
     />
   );
@@ -358,11 +354,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-footer"
       data-sidebar="footer"
-      className={cn(
-        "flex flex-col gap-2 p-0.5",
-        "group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:p-1",
-        className
-      )}
+      className={cn("flex flex-col gap-0.5 p-1", className)}
       {...props}
     />
   );
@@ -388,7 +380,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:gap-1",
+        "flex min-h-0 flex-1 flex-col gap-1 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
@@ -401,10 +393,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-group"
       data-sidebar="group"
-      className={cn(
-        "relative flex w-full min-w-0 flex-col px-2 py-1 group-data-[collapsible=icon]:p-0",
-        className
-      )}
+      className={cn("relative flex w-full min-w-0 flex-col p-1", className)}
       {...props}
     />
   );
@@ -496,41 +485,25 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 function SidebarMenuButton({
   asChild = false,
   isActive = false,
-  size = "default",
   tooltip,
   className,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean;
   isActive?: boolean;
-  size?: "default" | "sm" | "lg";
   tooltip?: string | React.ComponentProps<typeof TooltipContent>;
 }) {
-  const Comp = asChild ? Slot : "button";
+  const Comp = "span";
   const { isMobile, state } = useSidebar();
 
   const button = (
     <Comp
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
-      data-size={size}
       data-active={isActive}
-      type={Comp === "button" ? "button" : undefined}
       className={cn(
-        "ring-gray-8 outline-hidden flex w-full items-center gap-2 overflow-hidden rounded-md p-0.5 text-left",
-        "hover:bg-gray-4 hover:text-gray-12 focus-visible:ring-2 active:bg-gray-5 active:text-gray-12",
-        "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",
-        "data-[active=true]:bg-gray-4 data-[active=true]:font-medium data-[active=true]:text-gray-12",
-        "group-data-[collapsible=icon]:size-3! group-data-[collapsible=icon]:p-1! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-3!",
-        "group-data-[collapsible=icon]:[&>svg]:size-1",
-        "group-data-[collapsible=icon]:[&>span]:hidden",
-        "group-has-data-[sidebar=menu-action]/menu-item:pr-2.5",
-        "[&>svg]:size-1.5 [&>svg]:shrink-0 [&>span:last-child]:truncate",
-        size === "lg" && "h-3.5 text-sm",
-        size === "default" && "h-2.5 text-sm",
-        size === "sm" && "h-2 text-xs",
-        isActive && "bg-gray-4 font-medium text-gray-12",
-        className
+        className,
+        isActive && "bg-primary text-primary-foreground pt-1.5 pb-0.5 rounded-sm"
       )}
       {...props}
     />

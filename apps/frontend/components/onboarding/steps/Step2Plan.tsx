@@ -8,7 +8,11 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { OnboardingStatus } from "@/lib/auth/onboarding-status";
 import { useOnboardingNavigation } from "@/components/onboarding/OnboardingStepper";
-import { apiFetch } from "@/lib/auth";
+import {
+  apiFetch,
+  resolveOnboardingHref,
+  useSyncSessionAndNavigate,
+} from "@/lib/auth";
 import { cn } from "@/utils/class-names";
 import { BACKEND_URL } from "@/lib/env";
 
@@ -52,8 +56,9 @@ const formatCopPrice = (value: number) =>
 type BillingPeriod = "MONTHLY" | "YEARLY";
 
 export function Step2Plan() {
-  const { nextStepAfterSave, goToStep } = useOnboardingNavigation();
-  const { data: session, status, update: updateSession } = useSession();
+  const { goToStep } = useOnboardingNavigation();
+  const { data: session, status } = useSession();
+  const syncAndNavigate = useSyncSessionAndNavigate();
   const accessToken = session?.accessToken as string | undefined;
 
   const [plans, setPlans] = useState<PlanInfo[]>([]);
@@ -161,9 +166,14 @@ export function Step2Plan() {
         { method: "POST" },
         accessToken,
       );
-      await updateSession({ onboardingStatus: data.onboardingStatus });
       toast.success("Probá gratis por 7 días");
-      nextStepAfterSave(2, data.onboardingStatus);
+      // `syncAndNavigate` actualiza la sesión + refresca el server +
+      // navega, garantizando que el server component destino vea la cookie
+      // nueva y no redirija al step previo.
+      await syncAndNavigate(
+        { onboardingStatus: data.onboardingStatus },
+        resolveOnboardingHref(data.onboardingStatus),
+      );
     } catch (err: any) {
       toast.error(err.message || "Error al activar trial");
       setIsSkipping(false);
@@ -180,16 +190,16 @@ export function Step2Plan() {
 
   return (
     <div className="space-y-6">
-      <Card className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-on-background">
+      <Card className="rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-12 tracking-tight">
           Elegí tu plan
         </h2>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <p className="mt-1 text-sm text-gray-11">
           Todos los planes incluyen 7 días de prueba gratis. Podés cambiar o
           cancelar cuando quieras.
         </p>
 
-        <div className="mt-4 inline-flex rounded-lg border border-outline-variant bg-surface-container-low p-1">
+        <div className="mt-4 inline-flex rounded-lg border border-gray-6 bg-gray-3 p-1">
           {(["MONTHLY", "YEARLY"] as BillingPeriod[]).map((period) => (
             <button
               key={period}
@@ -198,8 +208,8 @@ export function Step2Plan() {
               className={cn(
                 "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
                 billingPeriod === period
-                  ? "bg-primary text-white"
-                  : "text-on-surface-variant hover:text-on-background",
+                  ? "bg-accent-9 text-white shadow-sm"
+                  : "text-gray-11 hover:text-gray-12",
               )}
             >
               {period === "MONTHLY" ? "Mensual" : "Anual (2 meses off)"}
@@ -218,30 +228,30 @@ export function Step2Plan() {
                 type="button"
                 onClick={() => setSelectedPlan(plan.planType)}
                 className={cn(
-                  "flex flex-col rounded-xl border-2 bg-surface-container-lowest p-5 text-left transition-all",
+                  "flex flex-col rounded-xl border-2 bg-gray-1 p-5 text-left transition-all",
                   isSelected
-                    ? "border-primary shadow-sm"
-                    : "border-outline-variant hover:border-primary/50",
+                    ? "border-accent-9 shadow-sm"
+                    : "border-gray-6 hover:border-accent-9/50",
                 )}
               >
-                <span className="text-base font-semibold text-on-background">
+                <span className="text-base font-semibold text-gray-12">
                   {details.name}
                 </span>
-                <span className="mt-1 text-xs text-on-surface-variant">
+                <span className="mt-1 text-xs text-gray-11">
                   {details.description}
                 </span>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-on-background">
+                  <span className="text-3xl font-bold text-gray-12">
                     ${formatCopPrice(price)}
                   </span>
-                  <span className="text-sm text-on-surface-variant">
+                  <span className="text-sm text-gray-11">
                     /{billingPeriod === "MONTHLY" ? "mes" : "año"}
                   </span>
                 </div>
-                <ul className="mt-4 space-y-1.5 text-sm text-on-surface-variant">
+                <ul className="mt-4 space-y-1.5 text-sm text-gray-11">
                   {details.features.map((f) => (
                     <li key={f} className="flex items-start gap-1.5">
-                      <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-accent-9" />
                       <span>{f}</span>
                     </li>
                   ))}
@@ -256,7 +266,7 @@ export function Step2Plan() {
             type="button"
             variant="link"
             onClick={() => goToStep(1)}
-            className="h-12 px-4 text-on-surface-variant"
+            className="h-12 px-4 text-gray-11 hover:bg-gray-3 hover:text-gray-12"
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
             Volver al paso 1
@@ -268,7 +278,7 @@ export function Step2Plan() {
               onClick={handleSkip}
               isLoading={isSkipping}
               isDisabled={isSubmitting}
-              className="h-12 px-4 text-on-surface-variant"
+              className="h-12 px-4 text-gray-11 hover:bg-gray-3 hover:text-gray-12"
             >
               Saltar y probar gratis
             </Button>
@@ -277,7 +287,7 @@ export function Step2Plan() {
               onClick={handleSelectAndPay}
               isLoading={isSubmitting}
               isDisabled={!selectedPlan || isSkipping}
-              className="h-12 bg-primary px-6 font-semibold text-white"
+              className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none"
             >
               {selectedPlan
                 ? `Pagar con MercadoPago`

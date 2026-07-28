@@ -75,7 +75,10 @@ export class MercadoPagoTokenService {
    * Verifica un token. Si el `preapprovalId` del payload no coincide
    * con el `expectedPreapprovalId`, falla con `UnauthorizedException`.
    */
-  verify(token: string, expectedPreapprovalId: string): MercadoPagoStatusTokenPayload {
+  verify(
+    token: string,
+    expectedPreapprovalId: string,
+  ): MercadoPagoStatusTokenPayload {
     let decoded: JwtSignedPayload;
     try {
       decoded = this.jwtService.verify<JwtSignedPayload>(token, {
@@ -85,7 +88,10 @@ export class MercadoPagoTokenService {
       throw new UnauthorizedException('Token inválido o expirado');
     }
 
-    if (!decoded.preapprovalId || decoded.preapprovalId !== expectedPreapprovalId) {
+    if (
+      !decoded.preapprovalId ||
+      decoded.preapprovalId !== expectedPreapprovalId
+    ) {
       throw new UnauthorizedException('El token no corresponde al preapproval');
     }
 

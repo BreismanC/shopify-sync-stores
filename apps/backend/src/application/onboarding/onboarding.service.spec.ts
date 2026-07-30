@@ -215,12 +215,14 @@ describe('OnboardingService', () => {
       await service.connectStore('user-uuid', {
         shopifyShopUrl: 'demo.myshopify.com',
         shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
       });
 
       expect(queueInitialSync.execute).not.toHaveBeenCalled();
     });
 
-    it('persiste todos los webhooks como CONNECTED y avanza el status', async () => {
+    it('persiste todos los webhooks como CONNECTED sin avanzar automáticamente', async () => {
       const webhooks = new Map<string, StoreWebhookRow>();
       const upsert = jest.fn(
         async (input: UpsertStoreWebhookInput): Promise<StoreWebhookRow> => {
@@ -256,9 +258,13 @@ describe('OnboardingService', () => {
       const result = await service.connectStore('user-uuid', {
         shopifyShopUrl: 'demo.myshopify.com',
         shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
       });
 
-      expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_STORE_ROLE);
+      expect(result.onboardingStatus).toBe(
+        OnboardingStatus.PENDING_STORE_CONFIG,
+      );
       // Por cada topic hicimos al menos 2 upserts: seed PENDING + CONNECTED.
       expect(upsert.mock.calls.length).toBeGreaterThanOrEqual(
         Object.values(WebhookTopic).length * 2,
@@ -271,10 +277,7 @@ describe('OnboardingService', () => {
       expect(shopifyWebhook.register).toHaveBeenCalledTimes(
         Object.values(WebhookTopic).length,
       );
-      expect(ensureTenantStatusAtLeast).toHaveBeenCalledWith(
-        'tenant-uuid',
-        OnboardingStatus.PENDING_STORE_ROLE,
-      );
+      expect(ensureTenantStatusAtLeast).not.toHaveBeenCalled();
     });
 
     it('bloquea connectStore con 400 si algún webhook obligatorio queda FAILED', async () => {
@@ -316,6 +319,8 @@ describe('OnboardingService', () => {
         service.connectStore('user-uuid', {
           shopifyShopUrl: 'demo.myshopify.com',
           shopifyAccessToken: 'shpat_demo_token',
+          shopifyApiSecret: 'custom-app-secret',
+          shopifyApiKey: 'custom-app-key',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -357,6 +362,8 @@ describe('OnboardingService', () => {
         service.connectStore('user-uuid', {
           shopifyShopUrl: 'demo.myshopify.com',
           shopifyAccessToken: 'shpat_demo_token',
+          shopifyApiSecret: 'custom-app-secret',
+          shopifyApiKey: 'custom-app-key',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -506,6 +513,8 @@ describe('OnboardingService', () => {
       await service.connectStore('user-uuid', {
         shopifyShopUrl: 'demo.myshopify.com',
         shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
       });
 
       // Cada topic genera al menos 1 publicación a `tenant` (seed) + 1 al

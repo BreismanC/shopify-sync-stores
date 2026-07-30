@@ -5,17 +5,16 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { IQueuePublisher } from '../ports/queue-publisher.port';
 import { IStoreRepository } from '../store/repositories/IStoreRepository';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue.constants';
 import { IWebhookDeliveryRepository } from './repositories/webhook-delivery.repository';
 import { inventoryItemIdFromWebhookPayload } from '../inventory/inventory.use-cases';
+import { EncryptionUtil } from '../../infrastructure/security/encryption.util';
 
 @Injectable()
 export class ProcessShopifyWebhookUseCase {
   constructor(
-    private readonly config: ConfigService,
     @Inject(IWebhookDeliveryRepository)
     private readonly deliveries: IWebhookDeliveryRepository,
     @Inject(IStoreRepository) private readonly stores: IStoreRepository,
@@ -30,15 +29,23 @@ export class ProcessShopifyWebhookUseCase {
     eventId: string;
     triggeredAt?: string;
   }) {
-    this.verifyHmac(input.rawBody, input.hmac);
     if (!input.topic || !input.shopDomain || !input.eventId)
       throw new BadRequestException('Headers de Shopify incompletos.');
+    const store = await this.stores.findByShopId(input.shopDomain);
+    if (!store?.apiSecret)
+      throw new UnauthorizedException(
+        'La tienda no tiene un API secret configurado.',
+      );
+    this.verifyHmac(
+      input.rawBody,
+      input.hmac,
+      this.decodeApiSecret(store.apiSecret),
+    );
     const existing = await this.deliveries.find(
       input.shopDomain,
       input.eventId,
     );
     if (existing) return { accepted: true, duplicate: true };
-    const store = await this.stores.findByShopId(input.shopDomain);
     const payload = JSON.parse(input.rawBody.toString('utf8')) as Record<
       string,
       unknown
@@ -108,8 +115,18 @@ export class ProcessShopifyWebhookUseCase {
     return { accepted: true, duplicate: false };
   }
 
-  private verifyHmac(rawBody: Buffer, received: string) {
-    const secret = this.config.getOrThrow<string>('SHOPIFY_API_SECRET');
+  private decodeApiSecret(raw: string): string {
+    if (!/^[0-9a-fA-F]{32}:[0-9a-fA-F]+$/.test(raw)) return raw;
+    try {
+      return EncryptionUtil.decrypt(raw);
+    } catch {
+      throw new UnauthorizedException(
+        'No se pudo descifrar el API secret de la tienda.',
+      );
+    }
+  }
+
+  private verifyHmac(rawBody: Buffer, received: string, secret: string) {
     const expected = Buffer.from(
       createHmac('sha256', secret).update(rawBody).digest('base64'),
     );

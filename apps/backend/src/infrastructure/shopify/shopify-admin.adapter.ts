@@ -418,6 +418,37 @@ export class ShopifyAdminAdapter
       );
       return matching.node.id;
     }
+    const sameTopic = existing.webhookSubscriptions.edges.find(
+      ({ node }) => node.topic === topic,
+    );
+    if (sameTopic) {
+      const updated = await this.graphql<{
+        webhookSubscriptionUpdate: {
+          webhookSubscription: { id: string } | null;
+          userErrors: Array<{ message: string }>;
+        };
+      }>(
+        credentials,
+        `mutation UpdateWebhook($id:ID!,$subscription:WebhookSubscriptionInput!){webhookSubscriptionUpdate(id:$id,webhookSubscription:$subscription){webhookSubscription{id}userErrors{message}}}`,
+        {
+          id: sameTopic.node.id,
+          subscription: { uri: callbackUrl, format: 'JSON' },
+        },
+      );
+      const updateErrors =
+        updated.webhookSubscriptionUpdate.userErrors.map(
+          (error) => error.message,
+        );
+      if (updateErrors.length)
+        throw new BadGatewayException({
+          code: 'SHOPIFY_WEBHOOK_UPDATE_ERROR',
+          message: updateErrors.join('; '),
+          topic,
+        });
+      const updatedId =
+        updated.webhookSubscriptionUpdate.webhookSubscription?.id;
+      if (updatedId) return updatedId;
+    }
 
     const data = await this.graphql<{
       webhookSubscriptionCreate: {

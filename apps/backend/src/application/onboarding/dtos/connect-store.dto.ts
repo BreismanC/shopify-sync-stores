@@ -8,4 +8,12 @@ export class ConnectStoreDto {
   @IsString()
   @IsNotEmpty()
   shopifyAccessToken!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  shopifyApiSecret!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  shopifyApiKey!: string;
 }

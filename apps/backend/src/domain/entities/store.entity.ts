@@ -24,6 +24,12 @@ export class Store {
   @Column()
   accessToken: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  apiKey: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  apiSecret: string | null;
+
   @Column({
     type: 'enum',
     enum: StoreRole,

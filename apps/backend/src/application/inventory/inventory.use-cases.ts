@@ -329,8 +329,13 @@ export class ProcessVendorInventorySyncUseCase {
       shopDomain: vendorStore.shopifyShopId,
       accessToken: vendorStore.accessToken,
     };
+    const vendorLevels = await this.shopifyInventory.getInventoryLevels(
+      credentials,
+      input.vendorInventoryItemId,
+    );
     const locationId =
-      await this.shopifyInventory.getDefaultInventoryLocationId(credentials);
+      vendorLevels[0]?.locationId ??
+      (await this.shopifyInventory.getDefaultInventoryLocationId(credentials));
     await this.shopifyInventory.setInventory(credentials, {
       inventoryItemId: input.vendorInventoryItemId,
       locationId,

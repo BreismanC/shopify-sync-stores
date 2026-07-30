@@ -220,6 +220,14 @@ describe('Inventory synchronization pipeline', () => {
       } as never,
       inventory as never,
       {
+        getInventoryLevels: jest.fn().mockResolvedValue([
+          {
+            inventoryItemId: 'vendor-item',
+            locationId: 'vendor-stocked-location',
+            availableQuantity: 0,
+            updatedAt: null,
+          },
+        ]),
         getDefaultInventoryLocationId: jest
           .fn()
           .mockResolvedValue('vendor-location'),

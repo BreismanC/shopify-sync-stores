@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { StoreConnectionService } from './store-connection.service';
 import { StoreRole } from '../../domain/enums/store-role.enum';
+import { ConnectionStatus } from '../../domain/enums/connection-status.enum';
 import { UserRole } from '../../domain/enums/user-role.enum';
 import { Store } from '../../domain/entities/store.entity';
 
@@ -252,6 +253,7 @@ describe('StoreConnectionService', () => {
           vendorStoreId: 's-target',
           initiatedByStoreId: 's-current',
           isActive: true,
+          status: ConnectionStatus.ACTIVE,
         }),
       );
       expect(result.connection.id).toBe('conn-id');
@@ -281,6 +283,7 @@ describe('StoreConnectionService', () => {
           sourceStoreId: 's-source',
           vendorStoreId: 's-vendor',
           initiatedByStoreId: 's-vendor',
+          status: ConnectionStatus.ACTIVE,
         }),
       );
       expect(result.connection.sourceStoreId).toBe('s-source');
@@ -345,6 +348,7 @@ describe('StoreConnectionService', () => {
         expect.objectContaining({
           id: 'inactive-id',
           isActive: true,
+          status: ConnectionStatus.ACTIVE,
           disconnectedAt: null,
         }),
       );
@@ -424,6 +428,7 @@ describe('StoreConnectionService', () => {
         expect.objectContaining({
           id: 'conn-1',
           isActive: false,
+          status: ConnectionStatus.REVOKED,
           disconnectedAt: expect.any(Date),
         }),
       );

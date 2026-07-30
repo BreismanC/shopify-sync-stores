@@ -578,9 +578,6 @@ export class OnboardingService {
       });
     }
 
-    if (this.queueInitialSync)
-      await this.queueInitialSync.execute(saved.tenantId, saved.id);
-
     const onboardingStatus = await this.ensureTenantStatusAtLeast(
       user.tenantId,
       OnboardingStatus.PENDING_STORE_ROLE,
@@ -981,6 +978,12 @@ export class OnboardingService {
 
     store.role = input.role;
     const saved = await this.storeRepository.save(store);
+
+    // La sincronización inicial se inicia sólo después de conocer el rol y
+    // siempre sobre la tienda propia creada en el onboarding. Conectar una
+    // tienda SOURCE fuera de este flujo no debe disparar ningún catálogo.
+    if (this.queueInitialSync)
+      await this.queueInitialSync.execute(saved.tenantId, saved.id);
 
     const onboardingStatus = await this.ensureTenantStatusAtLeast(
       user.tenantId,

@@ -1,5 +1,6 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import {
   IShopifyCustomerPort,
   IShopifyInventoryPort,
@@ -264,24 +265,65 @@ export class ShopifyAdminAdapter
     credentials: ShopifyCredentials,
     input: { inventoryItemId: string; locationId: string; quantity: number },
   ) {
-    await this.graphql(
+    const levels = await this.getInventoryLevels(
       credentials,
-      `mutation SetInventory($input:InventorySetQuantitiesInput!){inventorySetQuantities(input:$input){inventoryAdjustmentGroup{createdAt}userErrors{message}}}`,
+      input.inventoryItemId,
+    );
+    const currentQuantity =
+      levels.find((level) => level.locationId === input.locationId)
+        ?.availableQuantity ?? 0;
+    const targetQuantity = Math.max(0, input.quantity);
+    if (currentQuantity === targetQuantity) return;
+
+    const digest = createHash('sha256')
+      .update(
+        [
+          input.inventoryItemId,
+          input.locationId,
+          currentQuantity,
+          targetQuantity,
+        ].join(':'),
+      )
+      .digest('hex');
+    const idempotencyKey = [
+      digest.slice(0, 8),
+      digest.slice(8, 12),
+      `4${digest.slice(13, 16)}`,
+      `8${digest.slice(17, 20)}`,
+      digest.slice(20, 32),
+    ].join('-');
+
+    const data = await this.graphql<{
+      inventorySetQuantities: {
+        inventoryAdjustmentGroup: { createdAt: string } | null;
+        userErrors: Array<{ message: string; code?: string | null }>;
+      };
+    }>(
+      credentials,
+      `mutation SetInventory($input:InventorySetQuantitiesInput!,$idempotencyKey:String!){inventorySetQuantities(input:$input) @idempotent(key:$idempotencyKey){inventoryAdjustmentGroup{createdAt}userErrors{message code}}}`,
       {
         input: {
           name: 'available',
           reason: 'correction',
-          ignoreCompareQuantity: true,
           quantities: [
             {
               inventoryItemId: input.inventoryItemId,
               locationId: input.locationId,
-              quantity: Math.max(0, input.quantity),
+              quantity: targetQuantity,
+              changeFromQuantity: currentQuantity,
             },
           ],
         },
+        idempotencyKey,
       },
     );
+    const userError = data.inventorySetQuantities.userErrors[0];
+    if (userError) {
+      throw new BadGatewayException({
+        code: userError.code ?? 'SHOPIFY_INVENTORY_SET_FAILED',
+        message: userError.message,
+      });
+    }
   }
 
   async getInventoryLevels(

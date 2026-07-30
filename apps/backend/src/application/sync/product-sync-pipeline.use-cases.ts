@@ -804,6 +804,7 @@ export class ProcessVendorProductSyncUseCase {
     private readonly inventory: IInventoryRepository,
     @Inject(IShopifyProductPort) private readonly shopify: IShopifyProductPort,
     @Inject(IRealtimePublisher) private readonly realtime: IRealtimePublisher,
+    @Inject(IQueuePublisher) private readonly queues: IQueuePublisher,
     private readonly notifications: CreateNotificationUseCase,
     @Inject(IDistributedLock) private readonly locks: IDistributedLock,
   ) {}
@@ -895,11 +896,11 @@ export class ProcessVendorProductSyncUseCase {
     });
     mapping.vendorProductId = remoteId;
     mapping.vendorShopifyProductId = remoteId;
-    mapping.status = 'SYNCED';
+    mapping.status = 'PROCESSING';
     mapping.syncEnabled = true;
     mapping.isActive = true;
     mapping.lastSourceVersion = product.shopifyUpdatedAt?.toISOString() ?? null;
-    mapping.lastSyncedAt = new Date();
+    mapping.lastSyncedAt = null;
     mapping.lastError = null;
     mapping.lastDurationMs = Date.now() - started;
     mapping = await this.sync.saveSyncedProduct(mapping);
@@ -912,6 +913,10 @@ export class ProcessVendorProductSyncUseCase {
         remoteId,
       )) ?? remote;
     await this.persistVariantSyncs(input, mapping, product, remoteProduct);
+    mapping.status = 'SYNCED';
+    mapping.lastSyncedAt = new Date();
+    mapping.lastDurationMs = Date.now() - started;
+    mapping = await this.sync.saveSyncedProduct(mapping);
     await this.completeBatch(input, 'succeeded');
     this.logger.log(
       JSON.stringify({
@@ -1065,11 +1070,17 @@ export class ProcessVendorProductSyncUseCase {
         ? asScalarString(remoteVariant.id)
         : '';
       if (!remoteVariantId) continue;
+      const existingVariantSync = await this.inventory.findVariantSync(
+        input.connectionId,
+        sourceVariant.id,
+      );
+      const previousVendorInventoryItemId =
+        existingVariantSync?.vendorInventoryItemId ?? null;
+      const wasInventoryMappingReady =
+        existingVariantSync?.status === 'SYNCED' &&
+        Boolean(previousVendorInventoryItemId);
       const variantSync =
-        (await this.inventory.findVariantSync(
-          input.connectionId,
-          sourceVariant.id,
-        )) ??
+        existingVariantSync ??
         this.inventory.createVariantSync({
           tenantId: mapping.tenantId,
           productSyncId: mapping.id,
@@ -1091,8 +1102,60 @@ export class ProcessVendorProductSyncUseCase {
       variantSync.lastSyncedAt = new Date();
       variantSync.lastError = null;
       variantSync.lastDurationMs = null;
-      await this.inventory.saveVariantSync(variantSync);
+      const savedVariantSync =
+        await this.inventory.saveVariantSync(variantSync);
+      if (
+        !wasInventoryMappingReady ||
+        previousVendorInventoryItemId !==
+          savedVariantSync.vendorInventoryItemId
+      )
+        await this.queueInventoryReconciliation(
+          input,
+          sourceVariant,
+          savedVariantSync.id,
+        );
     }
+  }
+
+  private async queueInventoryReconciliation(
+    input: VendorProductSyncRequested,
+    sourceVariant: ProductVariantSnapshot,
+    variantSyncId: string,
+  ) {
+    if (!sourceVariant.shopifyInventoryItemId) return;
+    const eventId = [
+      input.batchId ?? input.sourceVersion ?? input.timestamp,
+      input.connectionId,
+      variantSyncId,
+      'mapping-ready',
+    ].join(':');
+    const payload: InventorySyncRequested = {
+      tenantId: input.tenantId,
+      storeId: input.sourceStoreId,
+      variantId: sourceVariant.id,
+      inventoryItemId: sourceVariant.shopifyInventoryItemId,
+      origin: 'retry',
+      timestamp: new Date().toISOString(),
+      deduplicationKey: `inventory-sync:${input.sourceStoreId}:${sourceVariant.shopifyInventoryItemId}`,
+      eventId,
+    };
+    await this.queues.publish(
+      QUEUE_NAMES.INVENTORY_SYNC,
+      'inventory-sync-requested',
+      payload as unknown as Record<string, unknown>,
+      {
+        jobId: [
+          'vendor-inventory-reconcile',
+          input.connectionId,
+          sourceVariant.id,
+          input.batchId ?? input.sourceVersion ?? input.timestamp,
+        ]
+          .join('-')
+          .replace(/[^a-zA-Z0-9_-]/g, '-'),
+        attempts: 8,
+        backoffMs: 2_000,
+      },
+    );
   }
 
   private applyCommission(

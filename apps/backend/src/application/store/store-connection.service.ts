@@ -10,6 +10,7 @@ import {
 import { Store } from '../../domain/entities/store.entity';
 import { StoreConnection } from '../../domain/entities/store-connection.entity';
 import { StoreRole } from '../../domain/enums/store-role.enum';
+import { ConnectionStatus } from '../../domain/enums/connection-status.enum';
 import { UserRole } from '../../domain/enums/user-role.enum';
 import { User } from '../../domain/entities/user.entity';
 import { IStoreRepository } from './repositories/IStoreRepository';
@@ -34,6 +35,7 @@ export interface StoreConnectionView {
   sourceStoreId: string;
   vendorStoreId: string;
   isActive: boolean;
+  status: ConnectionStatus;
   connectedAt: Date;
   disconnectedAt: Date | null;
 }
@@ -204,6 +206,7 @@ export class StoreConnectionService {
     let connection: StoreConnection;
     if (existing) {
       existing.isActive = true;
+      existing.status = ConnectionStatus.ACTIVE;
       existing.connectedAt = new Date();
       existing.disconnectedAt = null;
       existing.initiatedByStoreId = initiatedByStoreId;
@@ -216,6 +219,7 @@ export class StoreConnectionService {
         initiatedByStoreId,
         initiatedByUserId: user.id,
         isActive: true,
+        status: ConnectionStatus.ACTIVE,
         connectedAt: new Date(),
         disconnectedAt: null,
       });
@@ -326,6 +330,7 @@ export class StoreConnectionService {
     }
 
     connection.isActive = false;
+    connection.status = ConnectionStatus.REVOKED;
     connection.disconnectedAt = new Date();
     const saved = await this.connectionRepository.save(connection);
 
@@ -360,6 +365,7 @@ export class StoreConnectionService {
       sourceStoreId: c.sourceStoreId,
       vendorStoreId: c.vendorStoreId,
       isActive: c.isActive,
+      status: c.status,
       connectedAt: c.connectedAt,
       disconnectedAt: c.disconnectedAt,
     };

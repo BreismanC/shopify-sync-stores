@@ -208,18 +208,35 @@ describe('Inventory synchronization pipeline', () => {
     };
     const inventory = {
       findVariantSync: jest.fn().mockResolvedValue(variantSync),
+      findSnapshotByInventoryItem: jest.fn().mockResolvedValue({
+        storeId: 'vendor-store',
+        variantId: 'vendor-local-variant',
+        inventoryItemId: 'vendor-item',
+        availableQuantity: 1,
+      }),
+      saveSnapshot: jest.fn(async (value) => value),
       saveVariantSync: jest.fn(async (value) => value),
     };
+    const realtime = { publishToTenant: jest.fn().mockResolvedValue(undefined) };
     const useCase = new ProcessVendorInventorySyncUseCase(
       {
         findById: jest.fn().mockResolvedValue({
           id: 'vendor-store',
+          tenantId: 'vendor-tenant',
           shopifyShopId: 'vendor.myshopify.com',
           accessToken: 'token',
         }),
       } as never,
       inventory as never,
       {
+        getInventoryLevels: jest.fn().mockResolvedValue([
+          {
+            inventoryItemId: 'vendor-item',
+            locationId: 'vendor-stocked-location',
+            availableQuantity: 0,
+            updatedAt: null,
+          },
+        ]),
         getDefaultInventoryLocationId: jest
           .fn()
           .mockResolvedValue('vendor-location'),
@@ -229,6 +246,7 @@ describe('Inventory synchronization pipeline', () => {
         acquire: jest.fn().mockResolvedValue('token'),
         release: jest.fn().mockResolvedValue(undefined),
       } as never,
+      realtime as never,
     );
 
     await expect(
@@ -249,6 +267,18 @@ describe('Inventory synchronization pipeline', () => {
 
     expect(inventory.saveVariantSync).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'SYNCED', lastError: null }),
+    );
+    expect(inventory.saveSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ availableQuantity: 4, lastError: null }),
+    );
+    expect(realtime.publishToTenant).toHaveBeenCalledWith(
+      'vendor-tenant',
+      'inventory.updated',
+      expect.objectContaining({
+        storeId: 'vendor-store',
+        availableQuantity: 4,
+        previousQuantity: 1,
+      }),
     );
   });
 });

@@ -60,6 +60,21 @@ export interface UpsertTenantInput {
 export interface ConnectStoreInput {
   shopifyShopUrl: string;
   shopifyAccessToken: string;
+  shopifyApiSecret: string;
+  shopifyApiKey: string;
+}
+
+export interface StoreView {
+  id: string;
+  shopifyShopId: string;
+  role: StoreRole;
+  isActive: boolean;
+  storeKey: string | null;
+  tenantId: string;
+  apiKeyConfigured: boolean;
+  apiSecretConfigured: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface SetStoreRoleInput {
@@ -488,13 +503,13 @@ export class OnboardingService {
       return { store: null };
     }
     const stores = await this.storeRepository.findByTenantId(user.tenantId);
-    return { store: stores[0] ?? null };
+    return { store: stores[0] ? this.toStoreView(stores[0]) : null };
   }
 
   async connectStore(
     userId: string,
     input: ConnectStoreInput,
-  ): Promise<{ store: Store; onboardingStatus: OnboardingStatus }> {
+  ): Promise<{ store: StoreView; onboardingStatus: OnboardingStatus }> {
     const user = await this.requireStatus(
       userId,
       OnboardingStatus.PENDING_STORE_CONFIG,
@@ -525,18 +540,23 @@ export class OnboardingService {
 
     // Cifrar el accessToken antes de persistir
     const encryptedToken = EncryptionUtil.encrypt(input.shopifyAccessToken);
+    const encryptedApiSecret = EncryptionUtil.encrypt(input.shopifyApiSecret);
 
     const store =
       existing ??
       this.storeRepository.create({
         shopifyShopId,
         accessToken: encryptedToken,
+        apiKey: input.shopifyApiKey.trim(),
+        apiSecret: encryptedApiSecret,
         tenantId: user.tenantId,
         role: StoreRole.SOURCE, // default; se sobreescribe en paso 4
         isActive: true,
       });
 
     store.accessToken = encryptedToken;
+    store.apiKey = input.shopifyApiKey.trim();
+    store.apiSecret = encryptedApiSecret;
     store.tenantId = user.tenantId;
     store.isActive = true;
     const saved = await this.storeRepository.save(store);
@@ -578,15 +598,12 @@ export class OnboardingService {
       });
     }
 
-    if (this.queueInitialSync)
-      await this.queueInitialSync.execute(saved.tenantId, saved.id);
-
-    const onboardingStatus = await this.ensureTenantStatusAtLeast(
-      user.tenantId,
-      OnboardingStatus.PENDING_STORE_ROLE,
-    );
-
-    return { store: saved, onboardingStatus };
+    // Conectar y registrar webhooks no avanza el paso automáticamente. El
+    // usuario debe confirmar explícitamente con una segunda pulsación.
+    return {
+      store: this.toStoreView(saved),
+      onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+    };
   }
 
   /**
@@ -888,12 +905,6 @@ export class OnboardingService {
       userId,
     );
 
-    if (result.allRequiredConnected) {
-      await this.ensureTenantStatusAtLeast(
-        user.tenantId,
-        OnboardingStatus.PENDING_STORE_ROLE,
-      );
-    }
     return {
       webhooks: result.rows,
       allRequiredConnected: result.allRequiredConnected,
@@ -906,7 +917,7 @@ export class OnboardingService {
    * Usado cuando el usuario vuelve al paso 3 y continúa sin reingresar token.
    */
   async confirmStore(userId: string): Promise<{
-    store: Store;
+    store: StoreView;
     onboardingStatus: OnboardingStatus;
   }> {
     const user = await this.requireStatus(
@@ -927,6 +938,13 @@ export class OnboardingService {
     }
 
     // Bloqueamos el avance si algún webhook obligatorio no está conectado.
+    if (!store.apiKey || !store.apiSecret) {
+      throw new ConflictException({
+        message:
+          'La tienda debe volver a conectarse con API key y API secret antes de continuar.',
+        code: 'STORE_CREDENTIALS_NOT_READY',
+      });
+    }
     const webhooks = await this.storeWebhookRepository.listByStore(store.id);
     const failedRequired = webhooks
       .filter(
@@ -953,7 +971,22 @@ export class OnboardingService {
       OnboardingStatus.PENDING_STORE_ROLE,
     );
 
-    return { store, onboardingStatus };
+    return { store: this.toStoreView(store), onboardingStatus };
+  }
+
+  private toStoreView(store: Store): StoreView {
+    return {
+      id: store.id,
+      shopifyShopId: store.shopifyShopId,
+      role: store.role,
+      isActive: store.isActive,
+      storeKey: store.storeKey,
+      tenantId: store.tenantId,
+      apiKeyConfigured: Boolean(store.apiKey),
+      apiSecretConfigured: Boolean(store.apiSecret),
+      createdAt: store.createdAt,
+      updatedAt: store.updatedAt,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -981,6 +1014,12 @@ export class OnboardingService {
 
     store.role = input.role;
     const saved = await this.storeRepository.save(store);
+
+    // La sincronización inicial se inicia sólo después de conocer el rol y
+    // siempre sobre la tienda propia creada en el onboarding. Conectar una
+    // tienda SOURCE fuera de este flujo no debe disparar ningún catálogo.
+    if (this.queueInitialSync)
+      await this.queueInitialSync.execute(saved.tenantId, saved.id);
 
     const onboardingStatus = await this.ensureTenantStatusAtLeast(
       user.tenantId,

@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { Store } from './store.entity';
 import { User } from './user.entity';
+import { ConnectionStatus } from '../enums/connection-status.enum';
 
 @Entity('store_connections')
 @Unique('UQ_store_connections_source_vendor', [
@@ -52,6 +53,14 @@ export class StoreConnection {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: ConnectionStatus,
+    enumName: 'store_connections_status_enum',
+    default: ConnectionStatus.PENDING,
+  })
+  status: ConnectionStatus;
 
   @Column({ type: 'timestamptz' })
   connectedAt: Date;

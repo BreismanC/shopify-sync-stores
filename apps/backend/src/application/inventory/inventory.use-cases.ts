@@ -303,6 +303,7 @@ export class ProcessVendorInventorySyncUseCase {
     @Inject(IShopifyInventoryPort)
     private readonly shopifyInventory: IShopifyInventoryPort,
     @Inject(IDistributedLock) private readonly locks: IDistributedLock,
+    @Inject(IRealtimePublisher) private readonly realtime: IRealtimePublisher,
   ) {}
 
   async execute(input: VendorInventorySyncRequested) {
@@ -329,13 +330,43 @@ export class ProcessVendorInventorySyncUseCase {
       shopDomain: vendorStore.shopifyShopId,
       accessToken: vendorStore.accessToken,
     };
+    const vendorLevels = await this.shopifyInventory.getInventoryLevels(
+      credentials,
+      input.vendorInventoryItemId,
+    );
     const locationId =
-      await this.shopifyInventory.getDefaultInventoryLocationId(credentials);
+      vendorLevels[0]?.locationId ??
+      (await this.shopifyInventory.getDefaultInventoryLocationId(credentials));
     await this.shopifyInventory.setInventory(credentials, {
       inventoryItemId: input.vendorInventoryItemId,
       locationId,
       quantity: Math.max(0, input.availableQuantity),
     });
+    const quantity = Math.max(0, input.availableQuantity);
+    const snapshot = await this.inventory.findSnapshotByInventoryItem(
+      input.vendorStoreId,
+      input.vendorInventoryItemId,
+    );
+    if (snapshot) {
+      const previousQuantity = snapshot.availableQuantity;
+      snapshot.availableQuantity = quantity;
+      snapshot.shopifyUpdatedAt = new Date(input.timestamp);
+      snapshot.lastError = null;
+      snapshot.lastDurationMs = Date.now() - started;
+      await this.inventory.saveSnapshot(snapshot);
+      await this.realtime.publishToTenant(
+        vendorStore.tenantId,
+        'inventory.updated',
+        {
+          storeId: input.vendorStoreId,
+          variantId: snapshot.variantId,
+          inventoryItemId: input.vendorInventoryItemId,
+          availableQuantity: quantity,
+          previousQuantity,
+          origin: input.origin,
+        },
+      );
+    }
     mapping.status = 'SYNCED';
     mapping.lastSyncedAt = new Date();
     mapping.lastError = null;
@@ -347,7 +378,7 @@ export class ProcessVendorInventorySyncUseCase {
         connectionId: input.connectionId,
         sourceVariantId: input.sourceVariantId,
         vendorVariantId: input.vendorVariantId,
-        quantity: input.availableQuantity,
+        quantity,
         durationMs: mapping.lastDurationMs,
       }),
     );

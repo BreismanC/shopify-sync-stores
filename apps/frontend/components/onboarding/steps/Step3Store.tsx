@@ -27,6 +27,8 @@ interface StoreInfo {
   shopifyShopId: string;
   role: "SOURCE" | "VENDOR";
   isActive: boolean;
+  apiKeyConfigured?: boolean;
+  apiSecretConfigured?: boolean;
 }
 
 export function Step3Store() {
@@ -49,10 +51,14 @@ export function Step3Store() {
     useFormDynamic({
       shopifyShopUrl: "text",
       shopifyAccessToken: "text",
+      shopifyApiSecret: "text",
+      shopifyApiKey: "text",
     });
 
   const shopUrlField = field("shopifyShopUrl");
   const accessTokenField = field("shopifyAccessToken");
+  const apiSecretField = field("shopifyApiSecret");
+  const apiKeyField = field("shopifyApiKey");
 
   useEffect(() => {
     if (status === "loading") return;
@@ -88,6 +94,8 @@ export function Step3Store() {
     const values = getValues() as {
       shopifyShopUrl: string;
       shopifyAccessToken: string;
+      shopifyApiSecret: string;
+      shopifyApiKey: string;
     };
     const formData = new FormData(e.currentTarget);
     const shopifyShopUrl = String(
@@ -96,9 +104,22 @@ export function Step3Store() {
     const shopifyAccessToken = String(
       values.shopifyAccessToken || formData.get("shopifyAccessToken") || "",
     ).trim();
+    const shopifyApiSecret = String(
+      values.shopifyApiSecret || formData.get("shopifyApiSecret") || "",
+    ).trim();
+    const shopifyApiKey = String(
+      values.shopifyApiKey || formData.get("shopifyApiKey") || "",
+    ).trim();
 
     // Tienda ya conectada y sin token nuevo → confirmar y avanzar status.
-    if (existingStore && shopifyAccessToken.length < 10) {
+    if (
+      existingStore &&
+      existingStore.apiKeyConfigured &&
+      existingStore.apiSecretConfigured &&
+      !shopifyAccessToken &&
+      !shopifyApiSecret &&
+      !shopifyApiKey
+    ) {
       // Bloqueamos el avance si los webhooks todavía no están todos
       // conectados. El backend igual valida y devuelve 409 si esto se
       // cuela; acá evitamos el round-trip y le damos feedback inmediato.
@@ -133,7 +154,9 @@ export function Step3Store() {
         const message =
           err?.body?.code === "WEBHOOKS_NOT_READY"
             ? "Hay webhooks obligatorios sin conectar. Esperá a que finalicen o reintentá."
-            : err?.message || "Error al continuar";
+            : err?.body?.code === "STORE_CREDENTIALS_NOT_READY"
+              ? "Volvé a conectar la tienda ingresando las cuatro credenciales de la Custom App."
+              : err?.message || "Error al continuar";
         toast.error(message);
         setFetchStatus("error");
       }
@@ -148,6 +171,16 @@ export function Step3Store() {
     if (shopifyAccessToken.length < 10) {
       toast.error("El access token parece inválido");
       setTouch({ shopifyAccessToken: true });
+      return;
+    }
+    if (shopifyApiSecret.length < 8) {
+      toast.error("Ingresá el API secret de la Custom App");
+      setTouch({ shopifyApiSecret: true });
+      return;
+    }
+    if (shopifyApiKey.length < 5) {
+      toast.error("Ingresá el API key de la Custom App");
+      setTouch({ shopifyApiKey: true });
       return;
     }
 
@@ -165,17 +198,25 @@ export function Step3Store() {
           body: JSON.stringify({
             shopifyShopUrl,
             shopifyAccessToken,
+            shopifyApiSecret,
+            shopifyApiKey,
           }),
         },
         accessToken,
       );
 
-      toast.success("Tienda conectada");
+      toast.success(
+        "Tienda conectada. Presioná Continuar para avanzar al siguiente paso.",
+      );
       setFetchStatus("success");
-      const href = resolveOnboardingHref(data.onboardingStatus);
-      await syncAndNavigate({ onboardingStatus: data.onboardingStatus }, href, {
-        forceReload: true,
-      });
+      setExistingStore(data.store);
+      setValue((previous) => ({
+        ...previous,
+        shopifyShopUrl: data.store.shopifyShopId,
+        shopifyAccessToken: "",
+        shopifyApiSecret: "",
+        shopifyApiKey: "",
+      }));
     } catch (err: any) {
       const message =
         err?.body?.code === "WEBHOOKS_REGISTRATION_FAILED"
@@ -195,7 +236,7 @@ export function Step3Store() {
   }
 
   return (
-    <Card className="rounded-xl border border-gray-6 bg-gray-1 p-6 sm:p-8 shadow-sm">
+    <Card className="rounded-lg border border-gray-6 bg-gray-1 p-6 sm:p-8">
       <h2 className="text-xl font-semibold text-gray-12 tracking-tight">
         Conectá tu tienda Shopify
       </h2>
@@ -220,7 +261,7 @@ export function Step3Store() {
 
       <Form
         onSubmit={handleSubmit}
-        className="mt-6 space-y-4 [&_label]:block [&_label]:text-xs [&_label]:font-bold [&_label]:uppercase [&_label]:tracking-wider [&_label]:pb-2 [&_label]:text-gray-11 [&_[data-slot=input]]:h-12 [&_[data-slot=input]]:bg-gray-1 [&_[data-slot=input]]:border [&_[data-slot=input]]:border-gray-6 [&_[data-slot=input]]:rounded-lg [&_[data-slot=input]]:text-gray-12 [&_[data-slot=input]]:placeholder:text-gray-11 [&_[data-slot=input]]:focus:outline-none [&_[data-slot=input]]:focus:border-accent-9 [&_[data-slot=input]]:focus:ring-2 [&_[data-slot=input]]:focus:ring-accent-9/50"
+        className="mt-6 space-y-4 [&_label]:block [&_label]:text-xs [&_label]:font-bold [&_label]:uppercase [&_label]:tracking-wider [&_label]:pb-2 [&_label]:text-gray-11 [&_[data-slot=input]]:h-12 [&_[data-slot=input]]:bg-gray-1 [&_[data-slot=input]]:border [&_[data-slot=input]]:border-gray-6 [&_[data-slot=input]]:rounded [&_[data-slot=input]]:text-gray-12 [&_[data-slot=input]]:placeholder:text-gray-11 [&_[data-slot=input]]:focus:outline-none [&_[data-slot=input]]:focus:border-accent-9 [&_[data-slot=input]]:focus:ring-2 [&_[data-slot=input]]:focus:ring-accent-9/50"
       >
         <FormField
           name="shopifyShopUrl"
@@ -249,7 +290,37 @@ export function Step3Store() {
           />
         </FormField>
 
+        <FormField
+          name="shopifyApiSecret"
+          label="API secret de la Custom App"
+          field={apiSecretField}
+        >
+          <Input
+            name="shopifyApiSecret"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Ingresá el API secret"
+            value={String(apiSecretField.value ?? "")}
+            onChange={apiSecretField.onChange}
+          />
+        </FormField>
+
+        <FormField
+          name="shopifyApiKey"
+          label="API key de la Custom App"
+          field={apiKeyField}
+        >
+          <Input
+            name="shopifyApiKey"
+            autoComplete="off"
+            placeholder="Ingresá el API key"
+            value={String(apiKeyField.value ?? "")}
+            onChange={apiKeyField.onChange}
+          />
+        </FormField>
+
         <StoreWebhooksDetails
+          key={existingStore?.id ?? "pending-store"}
           accessToken={accessToken}
           initiallyOpen={Boolean(existingStore)}
           onChange={setWebhooksSummary}
@@ -266,16 +337,21 @@ export function Step3Store() {
             Volver al paso 2
           </Button>
           <FormSubmit
-            className="h-12 px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white rounded-lg shadow-sm hover:!transform-none active:!transform-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-12 rounded px-6 font-semibold bg-accent-9 hover:bg-accent-10 text-white hover:!transform-none active:!transform-none disabled:cursor-not-allowed disabled:opacity-50"
             fetchStatus={fetchStatus}
             disabled={Boolean(
               existingStore &&
+              existingStore.apiKeyConfigured &&
+              existingStore.apiSecretConfigured &&
               !webhooksSummary.allConnected &&
               webhooksSummary.total > 0,
             )}
             buttonProps={{
               label: existingStore
-                ? webhooksSummary.total === 0
+                ? !existingStore.apiKeyConfigured ||
+                  !existingStore.apiSecretConfigured
+                  ? "Completar credenciales"
+                  : webhooksSummary.total === 0
                   ? "Cargando webhooks…"
                   : webhooksSummary.allConnected
                     ? "Continuar"

@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { ProcessShopifyWebhookUseCase } from './process-shopify-webhook.use-case';
+import { EncryptionUtil } from '../../infrastructure/security/encryption.util';
 
 describe('ProcessShopifyWebhookUseCase', () => {
   const secret = 'test-shopify-secret';
@@ -9,7 +10,7 @@ describe('ProcessShopifyWebhookUseCase', () => {
     .update(payload)
     .digest('base64');
 
-  function setup(existing: any = null) {
+  function setup(existing: any = null, storedSecret = secret) {
     const deliveries = {
       find: jest.fn().mockResolvedValue(existing),
       create: jest.fn((value) => ({ id: 'delivery-1', ...value })),
@@ -18,13 +19,15 @@ describe('ProcessShopifyWebhookUseCase', () => {
     const stores = {
       findByShopId: jest
         .fn()
-        .mockResolvedValue({ id: 'store-1', tenantId: 'tenant-1' }),
+        .mockResolvedValue({
+          id: 'store-1',
+          tenantId: 'tenant-1',
+          apiSecret: storedSecret,
+        }),
     };
     const queues = { publish: jest.fn().mockResolvedValue('job-1') };
-    const config = { getOrThrow: jest.fn().mockReturnValue(secret) };
     return {
       useCase: new ProcessShopifyWebhookUseCase(
-        config as any,
         deliveries as any,
         stores as any,
         queues as any,
@@ -84,6 +87,20 @@ describe('ProcessShopifyWebhookUseCase', () => {
         deduplicationId: 'webhook:shop.myshopify.com:evt-1',
       }),
     );
+  });
+
+  it('valida el HMAC con el API secret cifrado de la tienda', async () => {
+    const { useCase, queues } = setup(null, EncryptionUtil.encrypt(secret));
+    await expect(
+      useCase.execute({
+        rawBody: payload,
+        hmac: signature,
+        topic: 'products/update',
+        shopDomain: 'shop.myshopify.com',
+        eventId: 'evt-encrypted-secret',
+      }),
+    ).resolves.toEqual({ accepted: true, duplicate: false });
+    expect(queues.publish).toHaveBeenCalled();
   });
 
   it('encola inventario como InventorySyncRequested', async () => {

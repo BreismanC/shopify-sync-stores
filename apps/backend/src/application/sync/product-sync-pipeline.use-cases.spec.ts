@@ -307,7 +307,10 @@ describe('Product synchronization pipeline', () => {
       getSettings: jest.fn().mockResolvedValue(null),
       findSyncedProduct: jest.fn().mockResolvedValue(null),
       createSyncedProduct: jest.fn((value) => ({ id: 'mapping-1', ...value })),
-      saveSyncedProduct: jest.fn(async (value) => value),
+      saveSyncedProduct: jest.fn(async (value) => ({ ...value })),
+    };
+    const queues = {
+      publish: jest.fn().mockResolvedValue('inventory-job-1'),
     };
     const product = {
       id: 'source-product',
@@ -367,7 +370,7 @@ describe('Product synchronization pipeline', () => {
           variants: {
             nodes: [
               {
-                id: 'vendor-variant-1',
+                id: 'gid://shopify/ProductVariant/51712453050508',
                 title: 'Default Title',
                 sku: 'CAT-1',
                 inventoryItem: { id: 'vendor-inventory-item' },
@@ -379,6 +382,7 @@ describe('Product synchronization pipeline', () => {
       {
         publishToTenant: jest.fn(),
       } as never,
+      queues as never,
       {} as never,
       {
         acquire: jest.fn().mockResolvedValue('lock-token'),
@@ -403,10 +407,40 @@ describe('Product synchronization pipeline', () => {
       expect.objectContaining({
         productSyncId: 'mapping-1',
         sourceVariantId: 'source-variant-1',
-        vendorVariantId: 'vendor-variant-1',
+        vendorVariantId: 'gid://shopify/ProductVariant/51712453050508',
         sourceInventoryItemId: 'source-inventory-item',
         vendorInventoryItemId: 'vendor-inventory-item',
         status: 'SYNCED',
+      }),
+    );
+    expect(queues.publish).toHaveBeenCalledWith(
+      'inventory-sync',
+      'inventory-sync-requested',
+      expect.objectContaining({
+        tenantId: 'vendor-tenant',
+        storeId: 'source-store',
+        variantId: 'source-variant-1',
+        inventoryItemId: 'source-inventory-item',
+        origin: 'retry',
+      }),
+      expect.objectContaining({
+        jobId: expect.stringContaining(
+          'vendor-inventory-reconcile-connection-1-source-variant-1',
+        ),
+      }),
+    );
+    expect(sync.saveSyncedProduct).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: 'PROCESSING',
+        lastSyncedAt: null,
+      }),
+    );
+    expect(sync.saveSyncedProduct).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        status: 'SYNCED',
+        lastSyncedAt: expect.any(Date),
       }),
     );
   });

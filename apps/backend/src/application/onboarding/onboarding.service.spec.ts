@@ -97,6 +97,9 @@ describe('OnboardingService', () => {
       shopifyWebhook: Partial<IShopifyWebhookPort>;
       realtime?: Partial<IRealtimePublisher>;
       config?: { get: (key: string) => string | undefined };
+      stores?: any[];
+      queueInitialSync?: { execute: jest.Mock };
+      onboardingStatus?: OnboardingStatus;
     }) {
       const userRepository = {
         findById: jest.fn().mockResolvedValue({
@@ -108,13 +111,14 @@ describe('OnboardingService', () => {
       const tenantRepository = {
         findById: jest.fn().mockResolvedValue({
           id: 'tenant-uuid',
-          onboardingStatus: OnboardingStatus.PENDING_STORE_CONFIG,
+          onboardingStatus:
+            opts.onboardingStatus ?? OnboardingStatus.PENDING_STORE_CONFIG,
         }),
         save: jest.fn().mockImplementation(async (entity) => entity),
       };
       const storeRepository = {
         findByShopId: jest.fn().mockResolvedValue(null),
-        findByTenantId: jest.fn().mockResolvedValue([]),
+        findByTenantId: jest.fn().mockResolvedValue(opts.stores ?? []),
         create: jest.fn().mockImplementation((dto) => dto),
         save: jest.fn().mockImplementation(async (entity) => ({
           ...entity,
@@ -146,6 +150,8 @@ describe('OnboardingService', () => {
           publishToUser: jest.fn().mockResolvedValue(undefined),
         }) as IRealtimePublisher,
         (opts.config ?? publicUrlConfig()) as any,
+        { countProducts: jest.fn().mockResolvedValue(0) } as any,
+        opts.queueInitialSync as any,
       );
 
       // Inyectamos manualmente un helper para no depender del orden de
@@ -156,7 +162,67 @@ describe('OnboardingService', () => {
       return { service, ensureTenantStatusAtLeast };
     }
 
-    it('persiste todos los webhooks como CONNECTED y avanza el status', async () => {
+    it('inicia la sincronización inicial sólo sobre la tienda propia después de guardar el rol', async () => {
+      const queueInitialSync = {
+        execute: jest.fn().mockResolvedValue({ id: 'initial-sync-1' }),
+      };
+      const { service } = buildService({
+        webhooksRepo: { listByStore: jest.fn().mockResolvedValue([]) },
+        shopifyWebhook: {},
+        stores: [
+          {
+            id: 'own-store',
+            tenantId: 'tenant-uuid',
+            role: StoreRole.SOURCE,
+            isActive: true,
+          },
+        ],
+        queueInitialSync,
+        onboardingStatus: OnboardingStatus.PENDING_STORE_ROLE,
+      });
+
+      await service.setStoreRole('user-uuid', {
+        storeId: 'own-store',
+        role: StoreRole.VENDOR,
+      });
+
+      expect(queueInitialSync.execute).toHaveBeenCalledWith(
+        'tenant-uuid',
+        'store-uuid',
+      );
+    });
+
+    it('no inicia sincronizaciones mientras la tienda aún no tiene un rol confirmado', async () => {
+      const queueInitialSync = {
+        execute: jest.fn().mockResolvedValue({ id: 'initial-sync-1' }),
+      };
+      const { service } = buildService({
+        webhooksRepo: {
+          upsert: jest.fn().mockImplementation(async (input) => ({
+            id: `webhook-${input.topic}`,
+            ...input,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })),
+          listByStore: jest.fn().mockResolvedValue([]),
+        },
+        shopifyWebhook: {
+          register: jest.fn(async (_credentials, topic) => `webhook-${topic}`),
+        },
+        queueInitialSync,
+      });
+
+      await service.connectStore('user-uuid', {
+        shopifyShopUrl: 'demo.myshopify.com',
+        shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
+      });
+
+      expect(queueInitialSync.execute).not.toHaveBeenCalled();
+    });
+
+    it('persiste todos los webhooks como CONNECTED sin avanzar automáticamente', async () => {
       const webhooks = new Map<string, StoreWebhookRow>();
       const upsert = jest.fn(
         async (input: UpsertStoreWebhookInput): Promise<StoreWebhookRow> => {
@@ -192,9 +258,13 @@ describe('OnboardingService', () => {
       const result = await service.connectStore('user-uuid', {
         shopifyShopUrl: 'demo.myshopify.com',
         shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
       });
 
-      expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_STORE_ROLE);
+      expect(result.onboardingStatus).toBe(
+        OnboardingStatus.PENDING_STORE_CONFIG,
+      );
       // Por cada topic hicimos al menos 2 upserts: seed PENDING + CONNECTED.
       expect(upsert.mock.calls.length).toBeGreaterThanOrEqual(
         Object.values(WebhookTopic).length * 2,
@@ -207,10 +277,7 @@ describe('OnboardingService', () => {
       expect(shopifyWebhook.register).toHaveBeenCalledTimes(
         Object.values(WebhookTopic).length,
       );
-      expect(ensureTenantStatusAtLeast).toHaveBeenCalledWith(
-        'tenant-uuid',
-        OnboardingStatus.PENDING_STORE_ROLE,
-      );
+      expect(ensureTenantStatusAtLeast).not.toHaveBeenCalled();
     });
 
     it('bloquea connectStore con 400 si algún webhook obligatorio queda FAILED', async () => {
@@ -252,6 +319,8 @@ describe('OnboardingService', () => {
         service.connectStore('user-uuid', {
           shopifyShopUrl: 'demo.myshopify.com',
           shopifyAccessToken: 'shpat_demo_token',
+          shopifyApiSecret: 'custom-app-secret',
+          shopifyApiKey: 'custom-app-key',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -293,6 +362,8 @@ describe('OnboardingService', () => {
         service.connectStore('user-uuid', {
           shopifyShopUrl: 'demo.myshopify.com',
           shopifyAccessToken: 'shpat_demo_token',
+          shopifyApiSecret: 'custom-app-secret',
+          shopifyApiKey: 'custom-app-key',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -442,6 +513,8 @@ describe('OnboardingService', () => {
       await service.connectStore('user-uuid', {
         shopifyShopUrl: 'demo.myshopify.com',
         shopifyAccessToken: 'shpat_demo_token',
+        shopifyApiSecret: 'custom-app-secret',
+        shopifyApiKey: 'custom-app-key',
       });
 
       // Cada topic genera al menos 1 publicación a `tenant` (seed) + 1 al

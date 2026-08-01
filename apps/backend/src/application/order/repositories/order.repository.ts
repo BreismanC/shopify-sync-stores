@@ -9,7 +9,11 @@ export interface OrderListQuery {
   perPage: number;
   status?: string;
   storeId?: string;
+  search?: string;
+  sortBy?: 'createdAt' | 'updatedAt' | 'status';
+  order?: 'asc' | 'desc';
 }
+
 export abstract class IOrderRepository {
   abstract findSynced(
     connectionId: string,
@@ -26,6 +30,14 @@ export abstract class IOrderRepository {
     tenantId: string,
     query: OrderListQuery,
   ): Promise<{ data: SyncedOrder[]; total: number }>;
+  abstract findById(tenantId: string, id: string): Promise<SyncedOrder | null>;
+  abstract findLinesByOrder(
+    tenantId: string,
+    syncedOrderId: string,
+  ): Promise<OrderLineMapping[]>;
   abstract findPayout(tenantId: string, id: string): Promise<Payout | null>;
-  abstract findPayoutByOrder(tenantId: string, syncedOrderId: string): Promise<Payout | null>;
+  abstract findPayoutByOrder(
+    tenantId: string,
+    syncedOrderId: string,
+  ): Promise<Payout | null>;
 }

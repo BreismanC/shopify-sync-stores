@@ -67,8 +67,10 @@ import { NotificationModule } from '../notification/notification.module';
 import { IOrderRepository } from '../order/repositories/order.repository';
 import { TypeOrmOrderRepository } from '../../infrastructure/repositories/order/typeorm-order.repository';
 import {
+  GetOrderDetailUseCase,
   GetOrdersUseCase,
   ProcessOrderWebhookUseCase,
+  PushOrderToSourceUseCase,
 } from '../order/order.use-cases';
 import { OrderController } from '../order/order.controller';
 import { DashboardController } from '../dashboard/dashboard.controller';
@@ -103,11 +105,7 @@ import { WebhookModule } from '../webhook/webhook.module';
     ShopifyModule,
     WebhookModule,
   ],
-  controllers: [
-    SyncController,
-    OrderController,
-    DashboardController,
-  ],
+  controllers: [SyncController, OrderController, DashboardController],
   providers: [
     TypeOrmProductRepository,
     TypeOrmSyncRepository,
@@ -139,6 +137,8 @@ import { WebhookModule } from '../webhook/webhook.module';
     DispatchVendorInventorySyncUseCase,
     ProcessVendorInventorySyncUseCase,
     GetOrdersUseCase,
+    GetOrderDetailUseCase,
+    PushOrderToSourceUseCase,
     ProcessOrderWebhookUseCase,
     SyncWorkerService,
   ],

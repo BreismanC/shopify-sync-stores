@@ -61,12 +61,37 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         '(o.sourceStoreId = :storeId OR o.vendorStoreId = :storeId)',
         { storeId: query.storeId },
       );
+    if (query.search && query.search.trim().length > 0) {
+      const term = `%${query.search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        "(LOWER(o.vendorShopifyOrderId) LIKE :term OR LOWER(COALESCE(o.sourceShopifyOrderId, '') ) LIKE :term OR LOWER(o.id) LIKE :term OR LOWER(CAST(o.payload->>'name' AS text)) LIKE :term OR LOWER(CAST(o.payload->>'email' AS text)) LIKE :term)",
+        { term },
+      );
+    }
+    const sortBy = query.sortBy ?? 'createdAt';
+    const order = query.order ?? 'desc';
     const [data, total] = await qb
-      .orderBy('o.createdAt', 'DESC')
+      .orderBy(`o.${sortBy}`, order.toUpperCase() as 'ASC' | 'DESC')
       .skip((query.page - 1) * query.perPage)
       .take(query.perPage)
       .getManyAndCount();
     return { data, total };
+  }
+  findById(tenantId: string, id: string) {
+    return this.orders
+      .createQueryBuilder('o')
+      .where(
+        '(o.tenantId = :tenantId OR EXISTS (SELECT 1 FROM stores s WHERE s."tenantId" = :tenantId AND (s.id = o."sourceStoreId" OR s.id = o."vendorStoreId")))',
+        { tenantId },
+      )
+      .andWhere('o.id = :id', { id })
+      .getOne();
+  }
+  findLinesByOrder(tenantId: string, syncedOrderId: string) {
+    return this.lines.find({
+      where: { tenantId, syncedOrderId },
+      order: { createdAt: 'ASC' },
+    });
   }
   findPayout(tenantId: string, id: string) {
     return this.payouts.findOne({ where: { tenantId, id } });

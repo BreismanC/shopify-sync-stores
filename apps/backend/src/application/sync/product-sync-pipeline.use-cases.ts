@@ -33,6 +33,7 @@ import {
   IProductRepository,
   ISyncRepository,
 } from './repositories/sync.repositories';
+import { sourcePublicationStatus } from './product-publication-status';
 import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
 import {
   InitialSyncScanRequested,
@@ -54,7 +55,6 @@ const DEFAULT_VENDOR_PRODUCT_RULES: Record<string, unknown> = {
   variants: true,
   options: true,
   skuStrategy: 'SOURCE_SKU',
-  publicationStatus: 'DRAFT',
   commissionPercentage: 0,
   commissionFixed: 0,
 };
@@ -1030,7 +1030,7 @@ export class ProcessVendorProductSyncUseCase {
               originalSource,
               contentType: 'IMAGE',
             })),
-      status: asScalarString(rules.publicationStatus, 'DRAFT'),
+      status: sourcePublicationStatus(product.status),
       productOptions: [
         {
           name: 'Title',

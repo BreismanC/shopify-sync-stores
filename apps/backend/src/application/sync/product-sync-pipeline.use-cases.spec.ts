@@ -316,6 +316,7 @@ describe('Product synchronization pipeline', () => {
       id: 'source-product',
       shopifyProductId: 'gid://shopify/Product/1',
       title: 'Brown Cat',
+      status: 'active',
       description: null,
       vendor: null,
       productType: null,
@@ -332,6 +333,24 @@ describe('Product synchronization pipeline', () => {
           shopifyInventoryItemId: 'source-inventory-item',
         },
       ],
+    };
+    const shopify = {
+      upsertProduct: jest
+        .fn()
+        .mockResolvedValue({ id: 'gid://shopify/Product/99' }),
+      getProduct: jest.fn().mockResolvedValue({
+        id: 'gid://shopify/Product/99',
+        variants: {
+          nodes: [
+            {
+              id: 'gid://shopify/ProductVariant/51712453050508',
+              title: 'Default Title',
+              sku: 'CAT-1',
+              inventoryItem: { id: 'vendor-inventory-item' },
+            },
+          ],
+        },
+      }),
     };
     const useCase = new ProcessVendorProductSyncUseCase(
       {
@@ -361,24 +380,7 @@ describe('Product synchronization pipeline', () => {
           }),
       } as never,
       inventory as never,
-      {
-        upsertProduct: jest
-          .fn()
-          .mockResolvedValue({ id: 'gid://shopify/Product/99' }),
-        getProduct: jest.fn().mockResolvedValue({
-          id: 'gid://shopify/Product/99',
-          variants: {
-            nodes: [
-              {
-                id: 'gid://shopify/ProductVariant/51712453050508',
-                title: 'Default Title',
-                sku: 'CAT-1',
-                inventoryItem: { id: 'vendor-inventory-item' },
-              },
-            ],
-          },
-        }),
-      } as never,
+      shopify as never,
       {
         publishToTenant: jest.fn(),
       } as never,
@@ -412,6 +414,11 @@ describe('Product synchronization pipeline', () => {
         vendorInventoryItemId: 'vendor-inventory-item',
         status: 'SYNCED',
       }),
+    );
+    expect(shopify.upsertProduct).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ status: 'ACTIVE' }),
+      undefined,
     );
     expect(queues.publish).toHaveBeenCalledWith(
       'inventory-sync',

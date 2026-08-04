@@ -36,6 +36,7 @@ import { asScalarString } from '../common/scalar';
 import { CreateNotificationUseCase } from '../notification/notification.use-cases';
 import { InitialSyncScanRequested, ProductSyncRequested } from './sync.events';
 import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
+import { sourcePublicationStatus } from './product-publication-status';
 
 const DEFAULT_PRODUCT_RULES = {
   title: true,
@@ -48,7 +49,6 @@ const DEFAULT_PRODUCT_RULES = {
   variants: true,
   options: true,
   skuStrategy: 'SOURCE_SKU',
-  publicationStatus: 'DRAFT',
   commissionPercentage: 0,
   commissionFixed: 0,
 };
@@ -901,7 +901,7 @@ export class ProcessProductSyncJobUseCase {
       productType:
         rules.productType === false ? undefined : product.productType,
       tags: rules.tags === false ? undefined : product.tags,
-      status: asScalarString(rules.publicationStatus, 'DRAFT'),
+      status: sourcePublicationStatus(product.status),
       productOptions: [
         {
           name: 'Title',

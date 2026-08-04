@@ -873,15 +873,25 @@ export class ProcessVendorProductSyncUseCase {
       ...(globalSettings?.productRules ?? {}),
       ...(connectionSettings?.productRules ?? {}),
     };
+    const transformedProduct = this.transformProduct(product, productRules);
     const remote = await this.shopify.upsertProduct(
       {
         shopDomain: vendor.shopifyShopId,
         accessToken: vendor.accessToken,
       },
-      this.transformProduct(product, productRules),
+      transformedProduct,
       mapping?.vendorShopifyProductId ?? input.vendorProductId ?? undefined,
     );
     const remoteId = String(remote.id);
+    if (transformedProduct.status === 'ACTIVE') {
+      await this.shopify.publishProduct(
+        {
+          shopDomain: vendor.shopifyShopId,
+          accessToken: vendor.accessToken,
+        },
+        remoteId,
+      );
+    }
     mapping ??= this.sync.createSyncedProduct({
       tenantId: input.tenantId,
       connectionId: input.connectionId,

@@ -27,6 +27,10 @@ export abstract class IShopifyProductPort {
     product: Record<string, unknown>,
     remoteId?: string,
   ): Promise<Record<string, unknown>>;
+  abstract publishProduct(
+    credentials: ShopifyCredentials,
+    productId: string,
+  ): Promise<{ publicationIds: string[] }>;
   abstract deleteProduct(
     credentials: ShopifyCredentials,
     productId: string,

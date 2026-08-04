@@ -784,18 +784,28 @@ export class ProcessProductSyncJobUseCase {
           connectionId,
           product.id,
         );
+        const transformedProduct = this.transformProduct(
+          product,
+          settings?.productRules ?? DEFAULT_PRODUCT_RULES,
+        );
         const remote = await this.shopify.upsertProduct(
           {
             shopDomain: destination.shopifyShopId,
             accessToken: destination.accessToken,
           },
-          this.transformProduct(
-            product,
-            settings?.productRules ?? DEFAULT_PRODUCT_RULES,
-          ),
+          transformedProduct,
           mapping?.vendorShopifyProductId,
         );
         remoteId = String(remote.id);
+        if (transformedProduct.status === 'ACTIVE') {
+          await this.shopify.publishProduct(
+            {
+              shopDomain: destination.shopifyShopId,
+              accessToken: destination.accessToken,
+            },
+            remoteId,
+          );
+        }
         const relation =
           mapping ??
           this.sync.createSyncedProduct({

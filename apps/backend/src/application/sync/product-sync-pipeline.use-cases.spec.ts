@@ -338,6 +338,9 @@ describe('Product synchronization pipeline', () => {
       upsertProduct: jest
         .fn()
         .mockResolvedValue({ id: 'gid://shopify/Product/99' }),
+      publishProduct: jest.fn().mockResolvedValue({
+        publicationIds: ['gid://shopify/Publication/1'],
+      }),
       getProduct: jest.fn().mockResolvedValue({
         id: 'gid://shopify/Product/99',
         variants: {
@@ -419,6 +422,13 @@ describe('Product synchronization pipeline', () => {
       expect.any(Object),
       expect.objectContaining({ status: 'ACTIVE' }),
       undefined,
+    );
+    expect(shopify.publishProduct).toHaveBeenCalledWith(
+      {
+        shopDomain: 'vendor.myshopify.com',
+        accessToken: 'vendor-token',
+      },
+      'gid://shopify/Product/99',
     );
     expect(queues.publish).toHaveBeenCalledWith(
       'inventory-sync',

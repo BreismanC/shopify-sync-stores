@@ -299,6 +299,11 @@ export class ShopifyAdminAdapter
     credentials: ShopifyCredentials,
     order: Record<string, unknown>,
   ) {
+    const input = {
+      ...order,
+      shippingAddress: this.toShopifyMailingAddress(order.shippingAddress),
+      billingAddress: this.toShopifyMailingAddress(order.billingAddress),
+    };
     const data = await this.graphql<{
       orderCreate: {
         order: Record<string, unknown>;
@@ -307,11 +312,38 @@ export class ShopifyAdminAdapter
     }>(
       credentials,
       `mutation CreateOrder($order:OrderCreateOrderInput!){orderCreate(order:$order){order{id name}userErrors{message}}}`,
-      { order },
+      { order: input },
     );
     if (data.orderCreate.userErrors.length)
       throw new BadGatewayException(data.orderCreate.userErrors[0].message);
     return data.orderCreate.order;
+  }
+
+  private toShopifyMailingAddress(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const address = value as Record<string, unknown>;
+    const read = (...keys: string[]) =>
+      keys
+        .map((key) => address[key])
+        .find((item) => item !== null && item !== undefined && item !== '');
+    const result: Record<string, unknown> = {};
+    const fields: Array<[string, string[]]> = [
+      ['address1', ['address1']],
+      ['address2', ['address2']],
+      ['city', ['city']],
+      ['company', ['company']],
+      ['countryCode', ['country_code', 'countryCode']],
+      ['firstName', ['first_name', 'firstName']],
+      ['lastName', ['last_name', 'lastName']],
+      ['phone', ['phone']],
+      ['province', ['province']],
+      ['zip', ['zip', 'postalCode']],
+    ];
+    for (const [target, keys] of fields) {
+      const item = read(...keys);
+      if (item !== undefined && item !== null && item !== '') result[target] = item;
+    }
+    return Object.keys(result).length ? result : undefined;
   }
 
   async createFulfillment(

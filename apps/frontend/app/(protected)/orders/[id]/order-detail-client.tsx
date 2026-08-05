@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/auth/fetch-with-auth";
+import { BACKEND_URL } from "@/lib/env";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   OrderDetail,
@@ -212,7 +213,7 @@ export default function OrderDetailClient({
     setIsLoading(true);
     try {
       const detail = await apiFetch<OrderDetail>(
-        `/api/orders/${orderId}`,
+        `${BACKEND_URL}/api/tenant/${tenantId}/orders/${orderId}`,
         { method: "GET" },
         accessToken,
       );
@@ -248,7 +249,7 @@ export default function OrderDetailClient({
         return;
       }
       const result = await apiFetch<OrderPushResult>(
-        `/api/orders/${order.id}/push`,
+        `${BACKEND_URL}/api/tenant/${tenantId}/orders/${order.id}/push`,
         {
           method: "POST",
           body: JSON.stringify({ shippingFee: fee }),

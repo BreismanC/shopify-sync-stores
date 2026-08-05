@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/auth/fetch-with-auth";
+import { BACKEND_URL } from "@/lib/env";
 import DataTable from "@/components/Orders/DataTable";
 import type {
   OrderRow,
@@ -66,7 +67,7 @@ export default function OrdersClient({ tenantId }: OrdersClientProps) {
         order,
       });
       const res = await apiFetch<OrderListResponse>(
-        `/api/orders?${params.toString()}`,
+        `${BACKEND_URL}/api/tenant/${tenantId}/orders?${params.toString()}`,
         { method: "GET" },
         accessToken,
       );

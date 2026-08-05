@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { IShopifyOrderPort } from '../shopify/ports/shopify.ports';
 import {
   IStoreConnectionRepository,
@@ -17,6 +17,7 @@ import {
   OrderListQuery,
 } from './repositories/order.repository';
 import { asScalarString } from '../common/scalar';
+import { IDistributedLock, DistributedLockUnavailableError } from '../ports/distributed-lock.port';
 
 export interface OrderLineView {
   id: string;
@@ -355,6 +356,7 @@ export class ProcessOrderWebhookUseCase {
     @Inject(IOrderRepository) private readonly orders: IOrderRepository,
     @Inject(IShopifyOrderPort) private readonly shopify: IShopifyOrderPort,
     private readonly notifications: CreateNotificationUseCase,
+    @Optional() @Inject(IDistributedLock) private readonly locks?: IDistributedLock,
   ) {}
 
   async execute(job: {
@@ -376,21 +378,27 @@ export class ProcessOrderWebhookUseCase {
       : [];
     let created = 0;
     for (const connection of connections) {
-      const sourceStore = await this.stores.findById(connection.sourceStoreId);
-      if (!sourceStore) continue;
-      const existing = await this.orders.findSynced(
-        connection.id,
-        vendorOrderId,
-        sourceStore.id,
-      );
-      if (existing) {
-        existing.payload = job.payload;
-        existing.status = this.statusForTopic(job.topic, job.payload);
-        await this.orders.saveOrder(existing);
-        continue;
-      }
-      if (job.topic !== 'orders/create' && job.topic !== 'orders/paid')
-        continue;
+      const lockKey = `order-sync:${connection.id}:${vendorOrderId}`;
+      const lockToken = this.locks
+        ? await this.locks.acquire(lockKey, 120_000)
+        : null;
+      if (this.locks && !lockToken) throw new DistributedLockUnavailableError(lockKey);
+      try {
+        const sourceStore = await this.stores.findById(connection.sourceStoreId);
+        if (!sourceStore) continue;
+        const existing = await this.orders.findSynced(
+          connection.id,
+          vendorOrderId,
+          sourceStore.id,
+        );
+        if (existing) {
+          existing.payload = job.payload;
+          existing.status = this.statusForTopic(job.topic, job.payload);
+          await this.orders.saveOrder(existing);
+          continue;
+        }
+        if (job.topic !== 'orders/create' && job.topic !== 'orders/paid')
+          continue;
       const mappedLines: Array<{
         vendor: Record<string, unknown>;
         sourceVariantId: string;
@@ -512,7 +520,10 @@ export class ProcessOrderWebhookUseCase {
           }),
         ),
       );
-      created += 1;
+        created += 1;
+      } finally {
+        if (this.locks && lockToken) await this.locks.release(lockKey, lockToken);
+      }
     }
     return { created };
   }

@@ -88,15 +88,37 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       .getOne();
   }
   findLinesByOrder(tenantId: string, syncedOrderId: string) {
-    return this.lines.find({
-      where: { tenantId, syncedOrderId },
-      order: { createdAt: 'ASC' },
-    });
+    return this.lines
+      .createQueryBuilder('line')
+      .innerJoin(
+        SyncedOrder,
+        'syncedOrder',
+        'syncedOrder.id = line."syncedOrderId"',
+      )
+      .where('line."syncedOrderId" = :syncedOrderId', { syncedOrderId })
+      .andWhere(
+        '("syncedOrder"."tenantId" = :tenantId OR EXISTS (SELECT 1 FROM stores s WHERE s."tenantId" = :tenantId AND (s.id = "syncedOrder"."sourceStoreId" OR s.id = "syncedOrder"."vendorStoreId")))',
+        { tenantId },
+      )
+      .orderBy('line."createdAt"', 'ASC')
+      .getMany();
   }
   findPayout(tenantId: string, id: string) {
     return this.payouts.findOne({ where: { tenantId, id } });
   }
   findPayoutByOrder(tenantId: string, syncedOrderId: string) {
-    return this.payouts.findOne({ where: { tenantId, syncedOrderId } });
+    return this.payouts
+      .createQueryBuilder('payout')
+      .innerJoin(
+        SyncedOrder,
+        'syncedOrder',
+        'syncedOrder.id = payout."syncedOrderId"',
+      )
+      .where('payout."syncedOrderId" = :syncedOrderId', { syncedOrderId })
+      .andWhere(
+        '("syncedOrder"."tenantId" = :tenantId OR EXISTS (SELECT 1 FROM stores s WHERE s."tenantId" = :tenantId AND (s.id = "syncedOrder"."sourceStoreId" OR s.id = "syncedOrder"."vendorStoreId")))',
+        { tenantId },
+      )
+      .getOne();
   }
 }

@@ -40,11 +40,14 @@ if (!NEW_RAW) {
 }
 
 // Reproduce la utilidad anterior (clave cruda) y la nueva (SHA-256).
-const OLD_FALLBACK = 'default-secret-key-must-be-32-chars!!';
+const OLD_FALLBACK = 'shopify-sync-stores-dev-encryption-key';
 
-function oldKey(rawEnv: string): Buffer {
+function oldKeys(rawEnv: string): Buffer[] {
   const raw = rawEnv && rawEnv.length > 0 ? rawEnv : OLD_FALLBACK;
-  return Buffer.from(raw, 'utf-8');
+  return [
+    Buffer.from(raw, 'utf-8'),
+    crypto.createHash('sha256').update(raw).digest(),
+  ];
 }
 
 function newKey(rawEnv: string): Buffer {
@@ -77,6 +80,7 @@ interface Row {
   id: string;
   shopifyShopId: string;
   accessToken: string;
+  apiSecret: string | null;
 }
 
 async function main() {
@@ -89,10 +93,10 @@ async function main() {
   });
 
   const { rows } = await pool.query<Row>(
-    'SELECT id, "shopifyShopId", "accessToken" FROM stores ORDER BY "createdAt"',
+    'SELECT id, "shopifyShopId", "accessToken", "apiSecret" FROM stores ORDER BY "createdAt"',
   );
 
-  const old = oldKey(OLD_RAW);
+  const old = oldKeys(OLD_RAW);
   const neu = newKey(NEW_RAW);
 
   const stats = {
@@ -117,7 +121,7 @@ async function main() {
       continue;
     }
     // Probamos con la clave vieja.
-    const plain = decryptWith(old, row.accessToken);
+    const plain = old.map((key) => decryptWith(key, row.accessToken)).find((value) => value !== null) ?? null;
     if (plain === null) {
       stats.unrecoverable++;
       unrecoverable.push({ id: row.id, shopifyShopId: row.shopifyShopId });

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/auth/fetch-with-auth";
 import { BACKEND_URL } from "@/lib/env";
+import { createSyncSocket } from "@/lib/realtime/sync-socket";
 import DataTable from "@/components/Orders/DataTable";
 import type {
   OrderRow,
@@ -89,7 +90,7 @@ export default function OrdersClient({ tenantId }: OrdersClientProps) {
       setIsLoading(false);
       setHasFetchedOnce(true);
     }
-  }, [accessToken, search, page, perPage, sortBy, order]);
+  }, [accessToken, order, page, perPage, search, sortBy, tenantId]);
 
   useEffect(() => {
     if (sessionStatus === "loading") return;
@@ -100,6 +101,23 @@ export default function OrdersClient({ tenantId }: OrdersClientProps) {
 
     return () => clearTimeout(timer);
   }, [sessionStatus, fetchOrders]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const socket = createSyncSocket(accessToken);
+    const refreshOrders = (notification?: { type?: string }) => {
+      if (!notification?.type || notification.type === "ORDER_CREATED") {
+        void fetchOrders();
+      }
+    };
+
+    socket.on("connect", () => refreshOrders());
+    socket.on("notification.created", refreshOrders);
+    return () => {
+      socket.disconnect();
+    };
+  }, [accessToken, fetchOrders]);
 
   const handleSearchChange = (v: string) => {
     setSearch(v);

@@ -44,7 +44,7 @@ import { OnboardingModule } from '../../application/onboarding/onboarding.module
         signOptions: { expiresIn: '30m' },
       }),
     }),
-    SubscriptionModule,
+    forwardRef(() => SubscriptionModule),
     forwardRef(() => OnboardingModule),
   ],
   controllers: [MercadoPagoWebhookController],

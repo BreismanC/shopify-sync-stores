@@ -45,6 +45,34 @@ export class AuthService {
     return null;
   }
 
+  async getProfile(userId: string) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new Error('Usuario no encontrado');
+    return this.toSafeProfile(user);
+  }
+
+  async updateProfile(userId: string, data: { name: string; email: string }) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new Error('Usuario no encontrado');
+    const email = data.email.trim().toLowerCase();
+    const existing = await this.userRepository.findByEmail(email);
+    if (existing && existing.id !== userId) throw new Error('El correo electrónico ya está en uso');
+    user.name = data.name.trim();
+    user.email = email;
+    return this.userRepository.update(user).then((saved) => this.toSafeProfile(saved));
+  }
+
+  async updatePassword(userId: string, password: string) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new Error('Usuario no encontrado');
+    user.password = await bcrypt.hash(password, 10);
+    await this.userRepository.update(user);
+  }
+
+  private toSafeProfile(user: User) {
+    return { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt, updatedAt: user.updatedAt };
+  }
+
   private async resolveOnboardingStatus(
     user: User,
   ): Promise<OnboardingStatus> {

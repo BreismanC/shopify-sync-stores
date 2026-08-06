@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ProductSnapshot,
@@ -98,10 +98,10 @@ import { WebhookModule } from '../webhook/webhook.module';
       WebhookDelivery,
       InitialSyncJob,
     ]),
-    AuthModule,
-    TenantModule,
-    StoreModule,
-    NotificationModule,
+    forwardRef(() => AuthModule),
+    forwardRef(() => TenantModule),
+    forwardRef(() => StoreModule),
+    forwardRef(() => NotificationModule),
     ShopifyModule,
     WebhookModule,
   ],

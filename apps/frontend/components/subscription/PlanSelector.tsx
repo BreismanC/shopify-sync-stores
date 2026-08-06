@@ -1,45 +1,23 @@
 "use client";
 
-import { useState } from 'react';
-import { SubscriptionPlan, BillingPeriod } from '@shopify-sync/database/enums';
-import { PLAN_PRICING, PLAN_LIMITS, PLAN_FEATURES } from './subscription-plans';
-import { Button } from '@/components/ui/Button';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from '@/components/ui/Card';
-import { PaymentForm } from './PaymentForm';
+import { useState } from "react";
+import { SubscriptionPlan, BillingPeriod } from "@shopify-sync/database/enums";
+import { PLAN_PRICING, PLAN_LIMITS, PLAN_FEATURES } from "./subscription-plans";
+import { PaymentForm } from "./PaymentForm";
+import { cn } from "@/utils/class-names";
 
 interface Props {
   onSelect: (plan: SubscriptionPlan, billingPeriod: BillingPeriod) => void;
 }
 
-const PLAN_ORDER: SubscriptionPlan[] = [
-  SubscriptionPlan.TRIAL,
-  SubscriptionPlan.BASIC,
-  SubscriptionPlan.PRO,
-  SubscriptionPlan.ENTERPRISE,
-];
-
-const BILLING_LABELS: Record<BillingPeriod, string> = {
-  [BillingPeriod.MONTHLY]: 'Mensual',
-  [BillingPeriod.YEARLY]: 'Anual (2 meses off)',
-};
+const PLAN_ORDER = [SubscriptionPlan.TRIAL, SubscriptionPlan.BASIC, SubscriptionPlan.PRO, SubscriptionPlan.ENTERPRISE];
 
 export function PlanSelector({ onSelect }: Props) {
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(
-    BillingPeriod.MONTHLY
-  );
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(
-    null
-  );
+  const [billingPeriod, setBillingPeriod] = useState(BillingPeriod.MONTHLY);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [showPayment, setShowPayment] = useState(false);
 
-  const handleChoosePlan = (plan: SubscriptionPlan) => {
+  const choosePlan = (plan: SubscriptionPlan) => {
     if (plan === SubscriptionPlan.TRIAL) {
       onSelect(plan, billingPeriod);
       return;
@@ -48,142 +26,82 @@ export function PlanSelector({ onSelect }: Props) {
     setShowPayment(true);
   };
 
-  const handlePaymentSuccess = () => {
-    setShowPayment(false);
-    setSelectedPlan(null);
-    onSelect(selectedPlan!, billingPeriod);
-  };
-
-  const handlePaymentError = (error: string) => {
-    console.error('Payment error:', error);
-  };
-
   const formatPrice = (plan: SubscriptionPlan) => {
     const price = PLAN_PRICING[plan][billingPeriod];
-    if (price === 0) return 'Gratis';
-    return `$${new Intl.NumberFormat('es-CO').format(price)}`;
-  };
-
-  const formatPeriod = (plan: SubscriptionPlan) => {
-    if (plan === SubscriptionPlan.TRIAL) return '7 días';
-    return billingPeriod === BillingPeriod.MONTHLY ? '/mes' : '/año';
+    return price === 0 ? "Gratis" : `$${new Intl.NumberFormat("es-CO").format(price)}`;
   };
 
   return (
     <div className="space-y-6">
-      {/* Billing period toggle */}
-      <div className="flex justify-center gap-4">
-        <Button
-          mode={billingPeriod === BillingPeriod.MONTHLY ? 'fill' : 'pill'}
-          size="md"
-          onClick={() => setBillingPeriod(BillingPeriod.MONTHLY)}
-        >
-          Mensual
-        </Button>
-        <Button
-          mode={billingPeriod === BillingPeriod.YEARLY ? 'fill' : 'pill'}
-          size="md"
-          onClick={() => setBillingPeriod(BillingPeriod.YEARLY)}
-        >
-          Anual (2 meses off)
-        </Button>
+      <div className="inline-flex rounded-lg border border-gray-6 bg-gray-3 p-1">
+        {[BillingPeriod.MONTHLY, BillingPeriod.YEARLY].map((period) => (
+          <button
+            key={period}
+            type="button"
+            onClick={() => setBillingPeriod(period)}
+            className={cn(
+              "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+              billingPeriod === period ? "bg-accent-9 text-white shadow-sm" : "text-gray-11 hover:text-gray-12",
+            )}
+          >
+            {period === BillingPeriod.MONTHLY ? "Mensual" : "Anual (2 meses off)"}
+          </button>
+        ))}
       </div>
 
-      {/* Plans grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {PLAN_ORDER.map((plan) => {
           const limits = PLAN_LIMITS[plan];
           const features = PLAN_FEATURES[plan];
-          const isEnterprise = plan === SubscriptionPlan.ENTERPRISE;
+          const selected = selectedPlan === plan;
+          const description = plan === SubscriptionPlan.TRIAL
+            ? "Para probar la sincronización."
+            : plan === SubscriptionPlan.BASIC
+              ? "Para tiendas que recién empiezan."
+              : plan === SubscriptionPlan.PRO
+                ? "Para equipos en crecimiento."
+                : "Sin límites, soporte prioritario.";
 
           return (
-            <Card
+            <button
               key={plan}
-              className={
-                isEnterprise
-                  ? 'border-accent-9 bg-accent-1'
-                  : undefined
-              }
+              type="button"
+              onClick={() => choosePlan(plan)}
+              className={cn(
+                "flex min-h-[304px] flex-col rounded-xl border-2 bg-gray-1 p-5 text-left transition-all",
+                selected ? "border-accent-9 shadow-sm" : "border-gray-6 hover:border-accent-9/50",
+              )}
             >
-              <CardHeader>
-                <CardTitle className="text-lg">{plan}</CardTitle>
-                <CardDescription>
-                  <span className="text-3xl font-bold">{formatPrice(plan)}</span>
-                  <span className="text-sm text-gray-11">{formatPeriod(plan)}</span>
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-                {/* Limits */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-gray-11 uppercase tracking-wide">
-                    Límites
-                  </div>
-                  <ul className="space-y-1 text-sm text-gray-12">
-                    <li>
-                      •{' '}
-                      {limits.connections === -1
-                        ? 'Ilimitadas'
-                        : `${limits.connections}`}{' '}
-                      conexiones
-                    </li>
-                    <li>
-                      •{' '}
-                      {limits.stores === -1
-                        ? 'Ilimitadas'
-                        : `${limits.stores}`}{' '}
-                      tiendas
-                    </li>
-                    <li>
-                      •{' '}
-                      {limits.users === -1
-                        ? 'Ilimitados'
-                        : `${limits.users}`}{' '}
-                      usuarios
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Features */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-gray-11 uppercase tracking-wide">
-                    Características
-                  </div>
-                  <ul className="space-y-1 text-sm text-gray-12">
-                    {features.map((feat) => (
-                      <li key={feat}>✓ {feat}</li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-
-              <CardFooter>
-                <Button
-                  mode="fill"
-                  size="md"
-                  className="w-full"
-                  onClick={() => handleChoosePlan(plan)}
-                >
-                  Elegir plan
-                </Button>
-              </CardFooter>
-            </Card>
+              <span className="text-base font-semibold text-gray-12">{plan}</span>
+              <span className="mt-1 text-xs text-gray-11">{description}</span>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-gray-12">{formatPrice(plan)}</span>
+                <span className="text-sm text-gray-11">
+                  {plan === SubscriptionPlan.TRIAL ? "7 días" : billingPeriod === BillingPeriod.MONTHLY ? "/mes" : "/año"}
+                </span>
+              </div>
+              <ul className="mt-4 space-y-1.5 text-sm text-gray-11">
+                {[limits.connections === -1 ? "Conexiones ilimitadas" : `${limits.connections} conexiones`, limits.stores === -1 ? "Tiendas ilimitadas" : `${limits.stores} tiendas`, limits.users === -1 ? "Miembros ilimitados" : `${limits.users} miembros de equipo`, ...features.slice(0, 2)].map((feature) => (
+                  <li key={feature} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-9" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <span className="mt-auto pt-5 text-sm font-semibold text-accent-9">Elegir plan</span>
+            </button>
           );
         })}
       </div>
 
-      {/* Payment Modal */}
       {selectedPlan && (
         <PaymentForm
           planType={selectedPlan}
           billingPeriod={billingPeriod}
           open={showPayment}
-          onClose={() => {
-            setShowPayment(false);
-            setSelectedPlan(null);
-          }}
-          onSuccess={handlePaymentSuccess}
-          onError={handlePaymentError}
+          onClose={() => { setShowPayment(false); setSelectedPlan(null); }}
+          onSuccess={() => { setShowPayment(false); setSelectedPlan(null); onSelect(selectedPlan, billingPeriod); }}
+          onError={(error) => console.error("Payment error:", error)}
         />
       )}
     </div>

@@ -27,6 +27,10 @@ export class TypeORMUserRepository implements IUserRepository {
     return this.userRepository.save(user);
   }
 
+  async update(user: User): Promise<User> {
+    return this.userRepository.save(user);
+  }
+
   create(user: Partial<User>): User {
     return this.userRepository.create(user);
   }

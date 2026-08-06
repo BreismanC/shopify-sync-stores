@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Subscription } from '../../domain/entities/subscription.entity';
 import { ISubscriptionRepository } from './repositories/ISubscriptionRepository';
@@ -7,9 +7,17 @@ import { SubscriptionService } from './subscription.service';
 import { SubscriptionAccessService } from './subscription-access.service';
 import { PlanAccessGuard } from './guards/plan-access.guard';
 import { ConnectionLimitGuard } from './guards/connection-limit.guard';
+import { SubscriptionController } from './subscription.controller';
+import { MercadoPagoModule } from '../../infrastructure/mercadopago/mercadopago.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Subscription])],
+  imports: [
+    TypeOrmModule.forFeature([Subscription]),
+    forwardRef(() => MercadoPagoModule),
+    forwardRef(() => AuthModule),
+  ],
+  controllers: [SubscriptionController],
   providers: [
     {
       provide: ISubscriptionRepository,

@@ -37,6 +37,7 @@ import { CreateNotificationUseCase } from '../notification/notification.use-case
 import { InitialSyncScanRequested, ProductSyncRequested } from './sync.events';
 import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
 import { sourcePublicationStatus } from './product-publication-status';
+import { NotificationType } from '../notification/notification.types';
 
 const DEFAULT_PRODUCT_RULES = {
   title: true,
@@ -451,7 +452,10 @@ export class ReconcileStoreUseCase {
 export class ProcessProductWebhookUseCase {
   constructor(
     @Inject(IStoreRepository) private readonly stores: IStoreRepository,
+    @Inject(ISTORE_CONNECTION_REPOSITORY)
+    private readonly connections: IStoreConnectionRepository,
     @Inject(IQueuePublisher) private readonly queues: IQueuePublisher,
+    private readonly notifications: CreateNotificationUseCase,
   ) {}
   async execute(job: {
     tenantId?: string | null;
@@ -486,6 +490,29 @@ export class ProcessProductWebhookUseCase {
         backoffMs: 2_000,
       },
     );
+    const connections = await this.connections.findActiveBySourceStore(store.id);
+    const type = job.topic === 'products/create'
+      ? NotificationType.PRODUCT_CREATED
+      : job.topic === 'products/delete'
+        ? NotificationType.PRODUCT_ARCHIVED
+        : NotificationType.PRODUCT_UPDATED;
+    const title = type === NotificationType.PRODUCT_CREATED
+      ? 'Nuevos productos disponibles'
+      : type === NotificationType.PRODUCT_ARCHIVED
+        ? 'Producto archivado'
+        : 'Producto actualizado';
+    await Promise.all(connections.map(async (connection) => {
+      const vendor = await this.stores.findById(connection.vendorStoreId);
+      if (!vendor) return;
+      await this.notifications.execute({
+        tenantId: vendor.tenantId,
+        type,
+        title,
+        message: `La tienda ${store.shopifyShopId} reportó un cambio de producto.`,
+        eventId: `product-webhook:${job.eventId}:${vendor.tenantId}`,
+        payload: { productId: shopifyProductId, sourceStoreId: store.id, vendorStoreId: vendor.id, topic: job.topic },
+      });
+    }));
     return { queued: true, queueJobId };
   }
 }
@@ -494,6 +521,7 @@ export class ProcessProductWebhookUseCase {
 export class ProcessAppUninstalledWebhookUseCase {
   constructor(
     @Inject(IStoreRepository) private readonly stores: IStoreRepository,
+    private readonly notifications: CreateNotificationUseCase,
   ) {}
 
   async execute(input: { storeId?: string | null }) {
@@ -502,6 +530,14 @@ export class ProcessAppUninstalledWebhookUseCase {
     if (!store) return { skipped: 'STORE_NOT_FOUND' };
     store.isActive = false;
     await this.stores.save(store);
+    await this.notifications.execute({
+      tenantId: store.tenantId,
+      type: NotificationType.STORE_CONNECTION_REVOKED,
+      title: 'Tienda desconectada',
+      message: `La tienda ${store.shopifyShopId} fue desinstalada de Shopify.`,
+      eventId: `app-uninstalled:${store.id}`,
+      payload: { storeId: store.id },
+    });
     return { deactivated: true, storeId: store.id };
   }
 }

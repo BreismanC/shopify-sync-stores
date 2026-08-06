@@ -8,5 +8,6 @@ export abstract class IUserRepository {
   abstract findByTenantId(tenantId: string): Promise<User[]>;
   abstract save(user: User): Promise<User>;
   abstract create(user: Partial<User>): User;
+  abstract update(user: User): Promise<User>;
   abstract updatePassword(email: string, password: string): Promise<void>;
 }

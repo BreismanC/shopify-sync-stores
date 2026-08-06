@@ -21,7 +21,7 @@ import { TenantModule } from '../tenant/tenant.module';
     TypeOrmModule.forFeature([Store, StoreConnection, StoreWebhook]),
     forwardRef(() => AuthModule),
     forwardRef(() => EmailModule),
-    NotificationModule,
+    forwardRef(() => NotificationModule),
     forwardRef(() => TenantModule),
   ],
   controllers: [StoreController],

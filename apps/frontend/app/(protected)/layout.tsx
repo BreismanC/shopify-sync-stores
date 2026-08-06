@@ -10,6 +10,7 @@ import {
   statusToStep,
 } from "@/lib/auth/onboarding-status";
 import type { ProfileWithRole, UserRole } from "@/types";
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 
 const VALID_ROLES: UserRole[] = ["OWNER", "ADMIN", "MEMBER"];
 
@@ -102,10 +103,12 @@ export default async function ProtectedLayout({
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <AppSidebar profile={profile} />
-      <SidebarInset>
-        <div className="flex flex-1 flex-col gap-2 p-2">{children}</div>
-      </SidebarInset>
+      <NotificationProvider>
+        <AppSidebar profile={profile} />
+        <SidebarInset>
+          <div className="flex flex-1 flex-col gap-2 p-2">{children}</div>
+        </SidebarInset>
+      </NotificationProvider>
     </SidebarProvider>
   );
 }

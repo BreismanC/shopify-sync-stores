@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { OnboardingSummary } from "@/components/onboarding/OnboardingSummary";
 import { OnboardingHeader } from "@/components/onboarding/OnboardingHeader";
+import { OnboardingNavigationProvider } from "@/components/onboarding/OnboardingNavigationProvider";
 import {
   OnboardingStatus,
   isValidStatus,
@@ -24,12 +25,14 @@ export default async function OnboardingSummaryPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-gray-2">
-      <OnboardingHeader />
+    <OnboardingNavigationProvider>
+      <div className="flex min-h-screen w-full flex-col bg-gray-2">
+        <OnboardingHeader />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
-        <OnboardingSummary />
-      </main>
-    </div>
+        <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
+          <OnboardingSummary />
+        </main>
+      </div>
+    </OnboardingNavigationProvider>
   );
 }

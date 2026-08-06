@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Check } from "lucide-react";
@@ -13,13 +12,18 @@ import {
   ONBOARDING_STEPS,
   TOTAL_ONBOARDING_STEPS,
 } from "@/lib/auth/onboarding-status";
+import { useOnboardingNavigationContext } from "@/components/onboarding/OnboardingNavigationProvider";
 
 interface OnboardingStepperProps {
   currentStep: number;
   className?: string;
 }
 
-export function OnboardingStepper({ currentStep, className }: OnboardingStepperProps) {
+export function OnboardingStepper({
+  currentStep,
+  className,
+}: OnboardingStepperProps) {
+  const { navigate, isNavigating } = useOnboardingNavigationContext();
   const progressPercent = Math.min(
     100,
     Math.max(0, ((currentStep - 1) / TOTAL_ONBOARDING_STEPS) * 100),
@@ -39,8 +43,12 @@ export function OnboardingStepper({ currentStep, className }: OnboardingStepperP
                   "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors",
                   isCompleted && "border-accent-9 bg-accent-9/10 text-accent-9",
                   isCurrent && "border-accent-9 bg-accent-9/10 text-accent-9",
-                  !isCompleted && !isCurrent && "border-gray-6 bg-gray-1 text-gray-11",
-                  isReachable && !isCurrent && "hover:border-accent-9 hover:text-accent-9",
+                  !isCompleted &&
+                    !isCurrent &&
+                    "border-gray-6 bg-gray-1 text-gray-11",
+                  isReachable &&
+                    !isCurrent &&
+                    "hover:border-accent-9 hover:text-accent-9",
                 )}
               >
                 {isCompleted ? <Check className="h-5 w-5" /> : step.number}
@@ -48,7 +56,11 @@ export function OnboardingStepper({ currentStep, className }: OnboardingStepperP
               <span
                 className={cn(
                   "mt-2 text-center text-xs font-bold transition-colors",
-                  isCurrent ? "text-accent-9" : isCompleted ? "text-accent-9" : "text-gray-11",
+                  isCurrent
+                    ? "text-accent-9"
+                    : isCompleted
+                      ? "text-accent-9"
+                      : "text-gray-11",
                 )}
               >
                 {step.title}
@@ -56,17 +68,30 @@ export function OnboardingStepper({ currentStep, className }: OnboardingStepperP
             </>
           );
           return (
-            <div key={step.number} className="flex flex-1 items-center sm:flex-col">
+            <div
+              key={step.number}
+              className="flex flex-1 items-center sm:flex-col"
+            >
               {isReachable ? (
                 <Link
                   href={`/onboarding?step=${step.number}`}
                   aria-current={isCurrent ? "step" : undefined}
+                  aria-disabled={isNavigating || isCurrent ? true : undefined}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (!isNavigating && !isCurrent) {
+                      navigate(`/onboarding?step=${step.number}`);
+                    }
+                  }}
                   className="group flex flex-1 flex-col items-center sm:p-1"
                 >
                   {inner}
                 </Link>
               ) : (
-                <div aria-disabled className="flex flex-1 flex-col items-center sm:p-1">
+                <div
+                  aria-disabled
+                  className="flex flex-1 flex-col items-center sm:p-1"
+                >
                   {inner}
                 </div>
               )}
@@ -106,8 +131,8 @@ export function OnboardingStepper({ currentStep, className }: OnboardingStepperP
  * - `goToStep(n)` navega explícitamente a un step concreto.
  */
 export function useOnboardingNavigation() {
-  const router = useRouter();
   const { data: session } = useSession();
+  const { navigate } = useOnboardingNavigationContext();
 
   const userCurrentStep = useMemo(() => {
     const raw = session?.user?.onboardingStatus;
@@ -122,22 +147,22 @@ export function useOnboardingNavigation() {
         : userCurrentStep;
       const target = latestUserStep > step ? latestUserStep : step + 1;
       const safe = Math.min(Math.max(target, 1), TOTAL_ONBOARDING_STEPS);
-      router.push(`/onboarding?step=${safe}`);
+      navigate(`/onboarding?step=${safe}`);
     },
-    [router, userCurrentStep],
+    [navigate, userCurrentStep],
   );
 
   const goToStep = useCallback(
     (step: number) => {
       const safe = Math.min(Math.max(step, 1), TOTAL_ONBOARDING_STEPS);
-      router.push(`/onboarding?step=${safe}`);
+      navigate(`/onboarding?step=${safe}`);
     },
-    [router],
+    [navigate],
   );
 
   const goToSummary = useCallback(() => {
-    router.push("/onboarding/summary");
-  }, [router]);
+    navigate("/onboarding/summary");
+  }, [navigate]);
 
   return { userCurrentStep, nextStepAfterSave, goToStep, goToSummary };
 }

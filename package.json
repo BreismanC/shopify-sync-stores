@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "build:full": "node scripts/build-full.mjs",
     "dev": "turbo run dev",
     "dev:full": "node scripts/dev-full.mjs",
     "infra:up": "docker compose up -d postgres redis",

@@ -16,6 +16,7 @@ export abstract class INotificationRepository {
   abstract findByIdForTenant(
     id: string,
     tenantId: string,
+    userId: string,
   ): Promise<Notification | null>;
   abstract list(
     tenantId: string,

@@ -75,12 +75,19 @@ export class UpdateNotificationUseCase {
     @Inject(INotificationRepository)
     private readonly repository: INotificationRepository,
   ) {}
-  async execute(tenantId: string, id: string, action: 'read' | 'archive') {
-    const notification = await this.repository.findByIdForTenant(id, tenantId);
+  async execute(
+    tenantId: string,
+    userId: string,
+    id: string,
+    action: 'read' | 'unread' | 'archive' | 'unarchive',
+  ) {
+    const notification = await this.repository.findByIdForTenant(id, tenantId, userId);
     if (!notification)
       throw new NotFoundException('Notificación no encontrada.');
     if (action === 'read') notification.readAt = new Date();
-    else notification.archivedAt = new Date();
+    if (action === 'unread') notification.readAt = null;
+    if (action === 'archive') notification.archivedAt = new Date();
+    if (action === 'unarchive') notification.archivedAt = null;
     return this.repository.save(notification);
   }
   all(tenantId: string, userId: string, action: 'read' | 'archive') {

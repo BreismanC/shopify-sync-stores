@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import {
   DistributedLockUnavailableError,
   IDistributedLock,
@@ -23,6 +23,8 @@ import { QUEUE_NAMES } from '../../infrastructure/queue/queue.constants';
 import { SyncEventStatus } from '../../domain/enums/sync-status.enum';
 import { asScalarString } from '../common/scalar';
 import { IInventoryRepository } from './repositories/inventory.repository';
+import { CreateNotificationUseCase } from '../notification/notification.use-cases';
+import { NotificationType } from '../notification/notification.types';
 
 const INVENTORY_LOCK_TTL_MS = 5_000;
 
@@ -41,6 +43,7 @@ export class ProcessInventorySyncRequestedUseCase {
     @Inject(IQueuePublisher) private readonly queues: IQueuePublisher,
     @Inject(IDistributedLock) private readonly locks: IDistributedLock,
     @Inject(IRealtimePublisher) private readonly realtime: IRealtimePublisher,
+    @Optional() private readonly notifications?: CreateNotificationUseCase,
   ) {}
 
   async execute(input: InventorySyncRequested) {
@@ -124,6 +127,14 @@ export class ProcessInventorySyncRequestedUseCase {
       },
       SyncEventStatus.SUCCEEDED,
     );
+    await this.notifications?.execute({
+      tenantId: input.tenantId,
+      type: NotificationType.INVENTORY_UPDATED,
+      title: 'Inventario actualizado',
+      message: `El inventario disponible ahora es ${total}.`,
+      eventId: `inventory-notification:${input.eventId ?? input.timestamp}:${input.storeId}:${sourceVariant.id}`,
+      payload: { storeId: input.storeId, variantId: sourceVariant.id, previousQuantity, availableQuantity: total },
+    });
     const shouldDispatch =
       previousQuantity !== total ||
       input.origin === 'manual' ||
@@ -174,6 +185,14 @@ export class ProcessInventorySyncRequestedUseCase {
   }
 
   async markPermanentlyFailed(input: InventorySyncRequested, error: Error) {
+    await this.notifications?.execute({
+      tenantId: input.tenantId,
+      type: NotificationType.INVENTORY_SYNC_ERROR,
+      title: 'Error sincronizando inventario',
+      message: error.message,
+      eventId: `inventory-error:${input.eventId ?? input.timestamp}:${input.storeId}:${input.inventoryItemId}`,
+      payload: { storeId: input.storeId, inventoryItemId: input.inventoryItemId },
+    });
     await this.recordEvent(
       'INVENTORY_SYNC_REQUESTED',
       `inventory-failed:${input.storeId}:${input.inventoryItemId}:${input.eventId ?? input.timestamp}`,

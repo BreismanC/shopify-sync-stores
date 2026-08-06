@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, IsNull, Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Notification } from '../../../domain/entities/notification.entity';
 import {
   INotificationRepository,
@@ -23,8 +23,12 @@ export class TypeOrmNotificationRepository implements INotificationRepository {
   findByEventId(tenantId: string, eventId: string) {
     return this.repository.findOne({ where: { tenantId, eventId } });
   }
-  findByIdForTenant(id: string, tenantId: string) {
-    return this.repository.findOne({ where: { id, tenantId } });
+  findByIdForTenant(id: string, tenantId: string, userId: string) {
+    return this.repository
+      .createQueryBuilder('n')
+      .where('n.id = :id AND n.tenantId = :tenantId', { id, tenantId })
+      .andWhere('(n.userId IS NULL OR n.userId = :userId)', { userId })
+      .getOne();
   }
 
   async list(tenantId: string, userId: string, filters: NotificationFilters) {
@@ -50,9 +54,12 @@ export class TypeOrmNotificationRepository implements INotificationRepository {
       .skip((filters.page - 1) * filters.perPage)
       .take(filters.perPage)
       .getManyAndCount();
-    const unread = await this.repository.count({
-      where: { tenantId, readAt: IsNull(), archivedAt: IsNull() },
-    });
+    const unread = await this.repository
+      .createQueryBuilder('n')
+      .where('n.tenantId = :tenantId', { tenantId })
+      .andWhere('(n.userId IS NULL OR n.userId = :userId)', { userId })
+      .andWhere('n.readAt IS NULL AND n.archivedAt IS NULL')
+      .getCount();
     return { data, total, unread };
   }
 

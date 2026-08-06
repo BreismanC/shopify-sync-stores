@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { cardTokenId, planType, billingPeriod } = body;
+    const { planType, billingPeriod } = body;
 
-    if (!cardTokenId || !planType || !billingPeriod) {
+    if (!planType || !billingPeriod) {
       return NextResponse.json(
-        { message: 'Faltan campos requeridos: cardTokenId, planType, billingPeriod' },
+        { message: 'Faltan campos requeridos: planType, billingPeriod' },
         { status: 400 }
       );
     }
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'application/json',
           ...(authHeader ? { Authorization: authHeader } : {}),
         },
-        body: JSON.stringify({ cardTokenId, planType, billingPeriod }),
+        body: JSON.stringify({ planType, billingPeriod }),
       }
     );
 

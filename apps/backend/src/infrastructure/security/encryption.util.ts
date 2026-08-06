@@ -17,7 +17,7 @@ export class EncryptionUtil {
   private static readonly keyLengthBytes = 32;
   private static readonly ivLength = 16;
 
-  private static readonly key: Buffer = (() => {
+  private static get key(): Buffer {
     const raw = process.env.ENCRYPTION_KEY;
     if (raw && raw.length > 0) {
       return crypto.createHash('sha256').update(raw).digest();
@@ -26,7 +26,7 @@ export class EncryptionUtil {
     // objetivo es no romper el arranque: no aporta seguridad real.
     const fallback = 'shopify-sync-stores-dev-encryption-key';
     return crypto.createHash('sha256').update(fallback).digest();
-  })();
+  }
 
   private static ensureKey(): void {
     if (this.key.length !== this.keyLengthBytes) {

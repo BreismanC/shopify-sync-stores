@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { IShopifyOrderPort } from '../shopify/ports/shopify.ports';
 import {
   IStoreConnectionRepository,
@@ -12,11 +12,13 @@ import {
   ISyncRepository,
 } from '../sync/repositories/sync.repositories';
 import { CreateNotificationUseCase } from '../notification/notification.use-cases';
+import { NotificationType } from '../notification/notification.types';
 import {
   IOrderRepository,
   OrderListQuery,
 } from './repositories/order.repository';
 import { asScalarString } from '../common/scalar';
+import { IDistributedLock, DistributedLockUnavailableError } from '../ports/distributed-lock.port';
 
 export interface OrderLineView {
   id: string;
@@ -355,6 +357,7 @@ export class ProcessOrderWebhookUseCase {
     @Inject(IOrderRepository) private readonly orders: IOrderRepository,
     @Inject(IShopifyOrderPort) private readonly shopify: IShopifyOrderPort,
     private readonly notifications: CreateNotificationUseCase,
+    @Optional() @Inject(IDistributedLock) private readonly locks?: IDistributedLock,
   ) {}
 
   async execute(job: {
@@ -376,21 +379,38 @@ export class ProcessOrderWebhookUseCase {
       : [];
     let created = 0;
     for (const connection of connections) {
-      const sourceStore = await this.stores.findById(connection.sourceStoreId);
-      if (!sourceStore) continue;
-      const existing = await this.orders.findSynced(
-        connection.id,
-        vendorOrderId,
-        sourceStore.id,
-      );
-      if (existing) {
-        existing.payload = job.payload;
-        existing.status = this.statusForTopic(job.topic, job.payload);
-        await this.orders.saveOrder(existing);
-        continue;
-      }
-      if (job.topic !== 'orders/create' && job.topic !== 'orders/paid')
-        continue;
+      const lockKey = `order-sync:${connection.id}:${vendorOrderId}`;
+      const lockToken = this.locks
+        ? await this.locks.acquire(lockKey, 120_000)
+        : null;
+      if (this.locks && !lockToken) throw new DistributedLockUnavailableError(lockKey);
+      try {
+        const sourceStore = await this.stores.findById(connection.sourceStoreId);
+        if (!sourceStore) continue;
+        const existing = await this.orders.findSynced(
+          connection.id,
+          vendorOrderId,
+          sourceStore.id,
+        );
+        if (existing) {
+          existing.payload = job.payload;
+          existing.status = this.statusForTopic(job.topic, job.payload);
+          await this.orders.saveOrder(existing);
+          const type = this.notificationTypeForTopic(job.topic);
+          if (type) {
+            await Promise.all([sourceStore.tenantId, vendorStore.tenantId].map((tenantId) => this.notifications.execute({
+              tenantId,
+              type,
+              title: this.notificationTitle(type),
+              message: `El pedido ${vendorOrderId} fue actualizado (${job.topic}).`,
+              eventId: `order-webhook:${job.eventId}:${connection.id}:${tenantId}`,
+              payload: { syncedOrderId: existing.id, vendorOrderId, topic: job.topic },
+            })));
+          }
+          continue;
+        }
+        if (job.topic !== 'orders/create' && job.topic !== 'orders/paid')
+          continue;
       const mappedLines: Array<{
         vendor: Record<string, unknown>;
         sourceVariantId: string;
@@ -504,7 +524,7 @@ export class ProcessOrderWebhookUseCase {
         [sourceStore.tenantId, vendorStore.tenantId].map((tenantId) =>
           this.notifications.execute({
             tenantId,
-            type: 'ORDER_CREATED',
+            type: NotificationType.ORDER_CREATED,
             title: 'Pedido asociado creado',
             message: `Pedido ${asScalarString(job.payload.name, vendorOrderId)} sincronizado con ${mappedLines.length} línea(s).`,
             eventId: `order-created:${job.eventId}:${connection.id}:${tenantId}`,
@@ -512,7 +532,18 @@ export class ProcessOrderWebhookUseCase {
           }),
         ),
       );
-      created += 1;
+      await Promise.all([sourceStore.tenantId, vendorStore.tenantId].map((tenantId) => this.notifications.execute({
+        tenantId,
+        type: NotificationType.PAYOUT_PENDING,
+        title: 'Payout pendiente',
+        message: `Se generó un payout pendiente para el pedido ${vendorOrderId}.`,
+        eventId: `payout-pending:${job.eventId}:${connection.id}:${tenantId}`,
+        payload: { syncedOrderId: order.id, vendorOrderId, payoutStatus: PayoutStatus.PENDING },
+      })));
+        created += 1;
+      } finally {
+        if (this.locks && lockToken) await this.locks.release(lockKey, lockToken);
+      }
     }
     return { created };
   }
@@ -526,5 +557,27 @@ export class ProcessOrderWebhookUseCase {
       payload.financial_status ?? payload.fulfillment_status,
       'UPDATED',
     ).toUpperCase();
+  }
+
+  private notificationTypeForTopic(topic: string) {
+    const types: Record<string, string> = {
+      'orders/updated': NotificationType.ORDER_UPDATED,
+      'orders/cancelled': NotificationType.ORDER_CANCELLED,
+      'orders/fulfilled': NotificationType.ORDER_FULFILLED,
+      'orders/paid': NotificationType.ORDER_PAID,
+      'refunds/create': NotificationType.ORDER_REFUNDED,
+    };
+    return types[topic];
+  }
+
+  private notificationTitle(type: string) {
+    const titles: Record<string, string> = {
+      [NotificationType.ORDER_UPDATED]: 'Pedido actualizado',
+      [NotificationType.ORDER_CANCELLED]: 'Pedido cancelado',
+      [NotificationType.ORDER_FULFILLED]: 'Pedido enviado',
+      [NotificationType.ORDER_PAID]: 'Pedido pagado',
+      [NotificationType.ORDER_REFUNDED]: 'Pedido reembolsado',
+    };
+    return titles[type] ?? 'Pedido actualizado';
   }
 }

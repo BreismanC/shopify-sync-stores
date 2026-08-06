@@ -25,6 +25,7 @@ import { IUSER_REPOSITORY } from '../auth/repositories/IUserRepository';
 import type { IUserRepository } from '../auth/repositories/IUserRepository';
 import { ITENANT_MEMBERSHIP_REPOSITORY } from '../tenant/repositories/ITenantMembershipRepository';
 import type { ITenantMembershipRepository } from '../tenant/repositories/ITenantMembershipRepository';
+import { NotificationType } from '../notification/notification.types';
 
 export interface ConnectByStoreKeyInput {
   storeKey: string;
@@ -226,6 +227,17 @@ export class StoreConnectionService {
       connection = await this.connectionRepository.save(created);
     }
 
+    await Promise.all([current.tenantId, target.tenantId].map((tenantId) =>
+      this.createNotification?.execute({
+        tenantId,
+        type: NotificationType.STORE_CONNECTION_ESTABLISHED,
+        title: 'Conexión establecida',
+        message: `La tienda ${current.shopifyShopId} y ${target.shopifyShopId} ahora están conectadas.`,
+        eventId: `connection-established:${connection.id}:${tenantId}:${connection.updatedAt?.getTime() ?? Date.now()}`,
+        payload: { connectionId: connection.id, sourceStoreId, vendorStoreId },
+      }),
+    ));
+
     return {
       connection: this.toConnectionView(connection),
       store: this.toStoreView(target),
@@ -333,6 +345,21 @@ export class StoreConnectionService {
     connection.status = ConnectionStatus.REVOKED;
     connection.disconnectedAt = new Date();
     const saved = await this.connectionRepository.save(connection);
+
+    const otherStoreId = connection.sourceStoreId === current.id ? connection.vendorStoreId : connection.sourceStoreId;
+    const otherStore = typeof this.storeRepository.findById === 'function'
+      ? await this.storeRepository.findById(otherStoreId)
+      : null;
+    await Promise.all([current.tenantId, otherStore?.tenantId].filter((tenantId): tenantId is string => Boolean(tenantId)).map(async (tenantId) => {
+      await this.createNotification?.execute({
+        tenantId,
+        type: NotificationType.STORE_CONNECTION_REVOKED,
+        title: 'Conexión revocada',
+        message: 'Una conexión entre tiendas fue revocada.',
+        eventId: `connection-revoked:${saved.id}:${saved.updatedAt?.getTime() ?? Date.now()}:${tenantId}`,
+        payload: { connectionId: saved.id },
+      });
+    }));
 
     return { connection: this.toConnectionView(saved) };
   }

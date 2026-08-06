@@ -33,6 +33,7 @@ import {
   IProductRepository,
   ISyncRepository,
 } from './repositories/sync.repositories';
+import { sourcePublicationStatus } from './product-publication-status';
 import { IInventoryRepository } from '../inventory/repositories/inventory.repository';
 import {
   InitialSyncScanRequested,
@@ -54,7 +55,6 @@ const DEFAULT_VENDOR_PRODUCT_RULES: Record<string, unknown> = {
   variants: true,
   options: true,
   skuStrategy: 'SOURCE_SKU',
-  publicationStatus: 'DRAFT',
   commissionPercentage: 0,
   commissionFixed: 0,
 };
@@ -873,15 +873,25 @@ export class ProcessVendorProductSyncUseCase {
       ...(globalSettings?.productRules ?? {}),
       ...(connectionSettings?.productRules ?? {}),
     };
+    const transformedProduct = this.transformProduct(product, productRules);
     const remote = await this.shopify.upsertProduct(
       {
         shopDomain: vendor.shopifyShopId,
         accessToken: vendor.accessToken,
       },
-      this.transformProduct(product, productRules),
+      transformedProduct,
       mapping?.vendorShopifyProductId ?? input.vendorProductId ?? undefined,
     );
     const remoteId = String(remote.id);
+    if (transformedProduct.status === 'ACTIVE') {
+      await this.shopify.publishProduct(
+        {
+          shopDomain: vendor.shopifyShopId,
+          accessToken: vendor.accessToken,
+        },
+        remoteId,
+      );
+    }
     mapping ??= this.sync.createSyncedProduct({
       tenantId: input.tenantId,
       connectionId: input.connectionId,
@@ -1030,7 +1040,7 @@ export class ProcessVendorProductSyncUseCase {
               originalSource,
               contentType: 'IMAGE',
             })),
-      status: asScalarString(rules.publicationStatus, 'DRAFT'),
+      status: sourcePublicationStatus(product.status),
       productOptions: [
         {
           name: 'Title',

@@ -29,7 +29,7 @@ import { SubscriptionModule } from '../subscription/subscription.module';
       }),
     }),
     forwardRef(() => TenantModule),
-    SubscriptionModule,
+    forwardRef(() => SubscriptionModule),
   ],
   controllers: [AuthController],
   providers: [

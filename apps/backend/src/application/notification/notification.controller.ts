@@ -49,12 +49,22 @@ export class NotificationController {
 
   @Patch(':id/read')
   read(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.updateNotification.execute(req.tenantId, id, 'read');
+    return this.updateNotification.execute(req.tenantId, req.user.id, id, 'read');
+  }
+
+  @Patch(':id/unread')
+  unread(@Req() req: TenantRequest, @Param('id') id: string) {
+    return this.updateNotification.execute(req.tenantId, req.user.id, id, 'unread');
   }
 
   @Patch(':id/archive')
   archive(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.updateNotification.execute(req.tenantId, id, 'archive');
+    return this.updateNotification.execute(req.tenantId, req.user.id, id, 'archive');
+  }
+
+  @Patch(':id/unarchive')
+  unarchive(@Req() req: TenantRequest, @Param('id') id: string) {
+    return this.updateNotification.execute(req.tenantId, req.user.id, id, 'unarchive');
   }
 
   @Post('read-all')

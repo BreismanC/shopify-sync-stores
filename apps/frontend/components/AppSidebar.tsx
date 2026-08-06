@@ -253,7 +253,7 @@ export function AppSidebar({ profile }: AppSidebarProps) {
                 <div className="relative flex items-start">
                   <notificationsItem.icon className="icon shrink-0" />
                   {unread > 0 && (
-                    <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-accent-9 px-1 text-[10px] leading-4 text-white">
+                    <span className="absolute -right-1 -top-1 z-10 flex h-2 min-w-2 items-center justify-center rounded-full bg-accent-9 px-0.5 text-[9px] font-bold leading-3 text-white shadow-sm ring-1 ring-gray-1">
                       {unread > 99 ? "99+" : unread}
                     </span>
                   )}

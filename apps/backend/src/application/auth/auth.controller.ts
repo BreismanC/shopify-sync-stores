@@ -10,6 +10,10 @@ import {
   UseGuards,
   Req,
   Res,
+  Put,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -19,6 +23,9 @@ import { ResetPasswordUseCase } from '../use-cases/auth/reset-password.use-case'
 import { AuthGuard } from '@nestjs/passport';
 import { RegisterDto } from './dtos/register.dto';
 import { User } from '../../domain/entities/user.entity';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+
+interface RequestWithUser extends Request { user: { id: string } }
 
 @Controller('auth')
 export class AuthController {
@@ -27,6 +34,29 @@ export class AuthController {
     private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
   ) {}
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async me(@Req() req: RequestWithUser) {
+    try { return this.authService.getProfile(req.user.id); }
+    catch { throw new NotFoundException('Usuario no encontrado'); }
+  }
+
+  @Put('me/profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(@Req() req: RequestWithUser, @Body() body: { name?: string; email?: string }) {
+    if (!body.name?.trim() || !body.email?.trim() || !body.email.includes('@')) throw new BadRequestException('Nombre y correo electrónico son obligatorios');
+    try { return await this.authService.updateProfile(req.user.id, { name: body.name, email: body.email }); }
+    catch (error) { if (error instanceof Error && error.message.includes('correo')) throw new ConflictException(error.message); throw new NotFoundException('Usuario no encontrado'); }
+  }
+
+  @Put('me/password')
+  @UseGuards(JwtAuthGuard)
+  async updatePassword(@Req() req: RequestWithUser, @Body() body: { password?: string; confirmPassword?: string }) {
+    if (!body.password || body.password.length < 6 || body.password !== body.confirmPassword) throw new BadRequestException('La contraseña debe tener al menos 6 caracteres y coincidir con la confirmación');
+    try { await this.authService.updatePassword(req.user.id, body.password); return { message: 'Contraseña actualizada correctamente' }; }
+    catch { throw new NotFoundException('Usuario no encontrado'); }
+  }
 
   @Post('login')
   async login(@Body() loginDto: { email: string; password: string }) {
